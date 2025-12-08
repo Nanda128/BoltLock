@@ -25,8 +25,10 @@ static void button_monitor_task(void* arg) {
         if (xQueueReceive(button_queue, &button_data, portMAX_DELAY) == pdTRUE) {
             ESP_LOGI(TAG, "Button event received: %d", button_data.event);
             
-            if (button_data.event == BUTTON_EVENT_PRESS || 
-                button_data.event == BUTTON_EVENT_RELEASE) {
+            if (button_data.event == BUTTON_EVENT_PRESS) {
+                send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
+            } else if (button_data.event == BUTTON_EVENT_LONG_PRESS) {
+                ESP_LOGI(TAG, "Long press detected: %lu ms", button_data.press_duration_ms);
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             }
         }
@@ -66,9 +68,9 @@ static void door_monitor_task(void* arg) {
                 event_count++;
             }
             
-            // IF there's been TAMPER_THRESHOLD_COUNT events recorded, within a TAMPER_THRESHOLD_TIME_MS window, trigger tamper event
+            // IF there's been TAMPER_THRESHOLD_COUNT events recorded within a TAMPER_THRESHOLD_TIME_MS window, trigger tamper event
             if (event_count >= TAMPER_THRESHOLD_COUNT) {
-                 // gets oldest event in buffer
+                // gets oldest event in buffer
                 uint8_t oldest_index = (event_index + TAMPER_EVENT_BUFFER_SIZE - event_count) % TAMPER_EVENT_BUFFER_SIZE;
                 int64_t oldest_time = door_event_times[oldest_index];
                 int64_t time_span = current_time - oldest_time;
@@ -138,15 +140,21 @@ void app_main(void) {
         return;
     }
     
-    xTaskCreate(button_monitor_task, "button_monitor", 2048, NULL, 5, NULL);
-    
-    xTaskCreate(door_monitor_task, "door_monitor", 2048, NULL, 5, NULL);
+    if (xTaskCreate(button_monitor_task, "button_monitor", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create button monitor task!");
+        return;
+    }
+
+    if (xTaskCreate(door_monitor_task, "door_monitor", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create door monitor task!");
+        return;
+    }
     
     // REMINDER: UPDATE THE WIFI CREDENTIALS IN config.h BEFORE ENABLING NETWORK
     ESP_LOGI(TAG, "Network initialization disabled - configure WiFi credentials first");
 
     // Uncomment below ONLY if WiFi credentials are configured:
-    
+
     /*
     ESP_LOGI(TAG, "Initializing WiFi...");
     ret = network_init();

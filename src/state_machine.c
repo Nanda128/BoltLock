@@ -44,7 +44,7 @@ static void handle_locked_state(sm_event_data_t* event) {
             break;
             
         case SM_EVENT_DOOR_OPENED:
-             // door opened while locked: tampering
+            // door opened while locked: tampering
             ESP_LOGW(TAG, "SECURITY ALERT: Door opened while locked!");
             log_event(EVENT_UNAUTHORIZED_ACCESS, "Door opened while locked - security breach");
             
@@ -72,7 +72,7 @@ static void handle_unlocked_state(sm_event_data_t* event) {
             ESP_LOGI(TAG, "Door opened while unlocked - normal operation");
             log_event(EVENT_DOOR_OPENED, "Door opened");
             
-            // dont lock while door is open
+            // don't lock while door is open
             if (auto_lock_timer != NULL) {
                 xTimerStop(auto_lock_timer, 0);
             }
@@ -184,7 +184,7 @@ esp_err_t state_machine_init(void) {
     
     auto_lock_timer = xTimerCreate(
         "AutoLockTimer",
-        pdMS_TO_TICKS(LOCK_UNLOCK_DELAY_MS),
+        pdMS_TO_TICKS(AUTO_LOCK_TIMEOUT_MS),
         pdFALSE, 
         NULL,
         auto_lock_timer_callback
@@ -192,6 +192,8 @@ esp_err_t state_machine_init(void) {
     
     if (auto_lock_timer == NULL) {
         ESP_LOGE(TAG, "Failed to create auto-lock timer");
+        vQueueDelete(sm_event_queue);
+        sm_event_queue = NULL;
         return ESP_FAIL;
     }
     
@@ -206,6 +208,10 @@ esp_err_t state_machine_init(void) {
     
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create state machine task");
+        xTimerDelete(auto_lock_timer, 0);
+        auto_lock_timer = NULL;
+        vQueueDelete(sm_event_queue);
+        sm_event_queue = NULL;
         return ESP_FAIL;
     }
     

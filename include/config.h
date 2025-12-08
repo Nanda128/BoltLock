@@ -8,7 +8,7 @@
 #define STATUS_LED_PIN GPIO_NUM_2     // status LED pin
 
 #define BUTTON_DEBOUNCE_MS 50      // debounce delay for button
-#define LOCK_UNLOCK_DELAY_MS 5000  // auto-lock after 5 seconds
+#define AUTO_LOCK_TIMEOUT_MS 5000  // auto-lock timeout duration (5 seconds)
 #define DOOR_CHECK_INTERVAL_MS 100 // door sensor check interval
 #define TAMPER_THRESHOLD_COUNT 5   // number of rapid door events to trigger tamper
 #define TAMPER_THRESHOLD_TIME_MS 3000 // time window for tamper detection (3 seconds)

@@ -3,12 +3,21 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 static const char* TAG = "LOCK_CONTROL";
 static lock_state_t current_lock_state = LOCK_STATE_LOCKED;
+static SemaphoreHandle_t lock_state_mutex = NULL;
 
 esp_err_t lock_control_init(void) {
     esp_err_t ret;
+    
+    // mutex to stop race conditions on lock state
+    lock_state_mutex = xSemaphoreCreateMutex();
+    if (lock_state_mutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create lock state mutex");
+        return ESP_FAIL;
+    }
     
     gpio_config_t io_conf_output = {
         .pin_bit_mask = (1ULL << LOCK_RELAY_PIN) | (1ULL << STATUS_LED_PIN),
@@ -41,7 +50,7 @@ esp_err_t lock_control_init(void) {
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,  // button pull up
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_NEGEDGE,  // button press interrupt
+        .intr_type = GPIO_INTR_ANYEDGE,  // button press and release interrupt
     };
     ret = gpio_config(&io_conf_button);
     if (ret != ESP_OK) {
@@ -62,7 +71,11 @@ esp_err_t lock_door(void) {
     ESP_LOGI(TAG, "Locking door...");
     
     gpio_set_level(LOCK_RELAY_PIN, 0);
-    current_lock_state = LOCK_STATE_LOCKED;
+    
+    if (xSemaphoreTake(lock_state_mutex, portMAX_DELAY) == pdTRUE) {
+        current_lock_state = LOCK_STATE_LOCKED;
+        xSemaphoreGive(lock_state_mutex);
+    }
     
     update_status_led();
     
@@ -73,14 +86,16 @@ esp_err_t lock_door(void) {
 esp_err_t unlock_door(void) {
     ESP_LOGI(TAG, "Unlocking door...");
     
-    // dont unlock if door is already open
-    door_state_t door_state = get_door_state();
-    if (door_state == DOOR_OPEN) {
-        ESP_LOGW(TAG, "Cannot unlock - door is already open");
-        return ESP_FAIL;
+    lock_state_t current_state = get_lock_state();
+    if (current_state == LOCK_STATE_UNLOCKED) {
+        ESP_LOGW(TAG, "Lock is already unlocked");
+        return ESP_OK;
     }
     
-    current_lock_state = LOCK_STATE_UNLOCKING;
+    if (xSemaphoreTake(lock_state_mutex, portMAX_DELAY) == pdTRUE) {
+        current_lock_state = LOCK_STATE_UNLOCKING;
+        xSemaphoreGive(lock_state_mutex);
+    }
     update_status_led();
     
     // High=unlock
@@ -88,7 +103,10 @@ esp_err_t unlock_door(void) {
     
     vTaskDelay(pdMS_TO_TICKS(500));
     
-    current_lock_state = LOCK_STATE_UNLOCKED;
+    if (xSemaphoreTake(lock_state_mutex, portMAX_DELAY) == pdTRUE) {
+        current_lock_state = LOCK_STATE_UNLOCKED;
+        xSemaphoreGive(lock_state_mutex);
+    }
     update_status_led();
     
     ESP_LOGI(TAG, "Door unlocked");
@@ -96,7 +114,14 @@ esp_err_t unlock_door(void) {
 }
 
 lock_state_t get_lock_state(void) {
-    return current_lock_state;
+    lock_state_t state;
+    if (xSemaphoreTake(lock_state_mutex, portMAX_DELAY) == pdTRUE) {
+        state = current_lock_state;
+        xSemaphoreGive(lock_state_mutex);
+    } else {
+        state = LOCK_STATE_ERROR;
+    }
+    return state;
 }
 
 door_state_t get_door_state(void) {
@@ -106,9 +131,17 @@ door_state_t get_door_state(void) {
 }
 
 void update_status_led(void) {
-    switch (current_lock_state) {
+    lock_state_t state;
+    if (xSemaphoreTake(lock_state_mutex, portMAX_DELAY) == pdTRUE) {
+        state = current_lock_state;
+        xSemaphoreGive(lock_state_mutex);
+    } else {
+        state = LOCK_STATE_ERROR;
+    }
+    
+    switch (state) {
         case LOCK_STATE_LOCKED:
-            gpio_set_level(STATUS_LED_PIN, 0); // turn off LED when its locked
+            gpio_set_level(STATUS_LED_PIN, 0); // turn off LED when it's locked
             break;
             
         case LOCK_STATE_UNLOCKING:
@@ -116,7 +149,7 @@ void update_status_led(void) {
             break;
             
         case LOCK_STATE_UNLOCKED:
-            gpio_set_level(STATUS_LED_PIN, 1); // turn on LED when its unlocked
+            gpio_set_level(STATUS_LED_PIN, 1); // turn on LED when it's unlocked
             break;
             
         case LOCK_STATE_ERROR:

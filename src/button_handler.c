@@ -14,6 +14,7 @@ static QueueHandle_t gpio_evt_queue = NULL;
 
 static volatile int64_t button_press_time = 0;
 static volatile bool button_is_pressed = false;
+static portMUX_TYPE button_state_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile int64_t last_door_change_time = 0;
 
@@ -42,8 +43,10 @@ static void gpio_event_task(void* arg) {
                 if (level == gpio_get_level(UNLOCK_BUTTON_PIN)) {
                     if (level == 0) {
                         // falling edge - button pressed
+                        portENTER_CRITICAL(&button_state_mux);
                         button_press_time = current_time;
                         button_is_pressed = true;
+                        portEXIT_CRITICAL(&button_state_mux);
                         
                         button_data_t btn_data = {
                             .event = BUTTON_EVENT_PRESS,
@@ -57,9 +60,18 @@ static void gpio_event_task(void* arg) {
                         ESP_LOGI(TAG, "Button pressed (ISR)");
                     } else {
                         // rising edge - button released
-                        if (button_is_pressed) {
-                            uint32_t duration = (uint32_t)(current_time - button_press_time);
-                            button_is_pressed = false;
+                        bool is_pressed;
+                        int64_t press_time;
+                        
+                        portENTER_CRITICAL(&button_state_mux);
+                        is_pressed = button_is_pressed;
+                        press_time = button_press_time;
+                        button_is_pressed = false;
+                        portEXIT_CRITICAL(&button_state_mux);
+                        
+                        if (is_pressed) {
+                            int64_t release_time = esp_timer_get_time() / 1000; // recapturing AFTER debounce
+                            uint32_t duration = (uint32_t)(release_time - press_time);
                             
                             button_data_t btn_data;
                             
@@ -119,24 +131,39 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
     if (gpio_evt_queue == NULL) {
         ESP_LOGE(TAG, "Failed to create GPIO event queue");
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
         return ESP_FAIL;
     }
     
     esp_err_t ret = gpio_install_isr_service(0);
     if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "Failed to install GPIO ISR service: %s", esp_err_to_name(ret));
+        vQueueDelete(gpio_evt_queue);
+        gpio_evt_queue = NULL;
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
         return ret;
     }
     
     ret = gpio_isr_handler_add(UNLOCK_BUTTON_PIN, button_isr_handler, (void*) UNLOCK_BUTTON_PIN);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add button ISR handler: %s", esp_err_to_name(ret));
+        vQueueDelete(gpio_evt_queue);
+        gpio_evt_queue = NULL;
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
         return ret;
     }
     
     ret = gpio_isr_handler_add(DOOR_SENSOR_PIN, door_sensor_isr_handler, (void*) DOOR_SENSOR_PIN);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add door sensor ISR handler: %s", esp_err_to_name(ret));
+        gpio_isr_handler_remove(UNLOCK_BUTTON_PIN);
+        vQueueDelete(gpio_evt_queue);
+        gpio_evt_queue = NULL;
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
         return ret;
     }
     
@@ -151,6 +178,12 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
     
     if (task_ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GPIO event task");
+        gpio_isr_handler_remove(DOOR_SENSOR_PIN);
+        gpio_isr_handler_remove(UNLOCK_BUTTON_PIN);
+        vQueueDelete(gpio_evt_queue);
+        gpio_evt_queue = NULL;
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
         return ESP_FAIL;
     }
     

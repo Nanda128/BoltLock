@@ -53,8 +53,13 @@ esp_err_t log_event(event_type_t type, const char* description) {
     strncpy(event.description, description, sizeof(event.description) - 1);
     event.description[sizeof(event.description) - 1] = '\0';
     
-    ESP_LOGI(TAG, "Event: %s - %s", event_type_names[type], description);
-    
+    const size_t event_type_names_count = sizeof(event_type_names) / sizeof(event_type_names[0]);
+    const char* type_name = (type >= 0 && (size_t)type < event_type_names_count) ? event_type_names[type] : "UNKNOWN";
+    if (type_name == "UNKNOWN") {
+        ESP_LOGW(TAG, "Invalid event type: %d", type);
+    }
+    ESP_LOGI(TAG, "Event: %s - %s", type_name, description);
+        
     uint32_t event_count = 0;
     ret = nvs_get_u32(nvs_handle, NVS_EVENT_COUNT_KEY, &event_count);
     if (ret == ESP_ERR_NVS_NOT_FOUND) {
@@ -164,13 +169,17 @@ void format_event_message(event_log_t* event, char* buffer, size_t buffer_size) 
             break;
     }
     
+    const char* event_type_str = "UNKNOWN";
+    if (event->type >= 0 && event->type < (sizeof(event_type_names)/sizeof(event_type_names[0]))) {
+        event_type_str = event_type_names[event->type];
+    }
     snprintf(buffer, buffer_size, 
              "%s *BoltLock Alert*\n\n"
                 "*Event:* %s\n"
                 "*Details:* %s\n"
                 "*Time:* %ld",
                 emoji,
-                event_type_names[event->type],
+                event_type_str,
                 event->description,
                 event->timestamp);
 }
