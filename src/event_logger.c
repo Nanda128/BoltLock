@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 static const char* TAG = "EVENT_LOGGER";
-static nvs_handle_t nvs_handle;
+static nvs_handle_t nvs_handle_var;
 
 static const char* event_type_names[] = {
     "LOCK",
@@ -34,7 +34,7 @@ esp_err_t event_logger_init(void) {
         return ret;
     }
     
-    ret = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    ret = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle_var);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS namespace: %s", esp_err_to_name(ret));
         return ret;
@@ -55,13 +55,13 @@ esp_err_t log_event(event_type_t type, const char* description) {
     
     const size_t event_type_names_count = sizeof(event_type_names) / sizeof(event_type_names[0]);
     const char* type_name = (type >= 0 && (size_t)type < event_type_names_count) ? event_type_names[type] : "UNKNOWN";
-    if (type_name == "UNKNOWN") {
+    if (strcmp(type_name, "UNKNOWN") == 0) {
         ESP_LOGW(TAG, "Invalid event type: %d", type);
     }
     ESP_LOGI(TAG, "Event: %s - %s", type_name, description);
         
     uint32_t event_count = 0;
-    ret = nvs_get_u32(nvs_handle, NVS_EVENT_COUNT_KEY, &event_count);
+    ret = nvs_get_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, &event_count);
     if (ret == ESP_ERR_NVS_NOT_FOUND) {
         event_count = 0;
     } else if (ret != ESP_OK) {
@@ -72,20 +72,20 @@ esp_err_t log_event(event_type_t type, const char* description) {
     char key[16];
     snprintf(key, sizeof(key), "evt_%lu", event_count % 100);
     
-    ret = nvs_set_blob(nvs_handle, key, &event, sizeof(event_log_t));
+    ret = nvs_set_blob(nvs_handle_var, key, &event, sizeof(event_log_t));
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to store event: %s", esp_err_to_name(ret));
         return ret;
     }
     
     event_count++;
-    ret = nvs_set_u32(nvs_handle, NVS_EVENT_COUNT_KEY, event_count);
+    ret = nvs_set_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, event_count);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to update event count: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    ret = nvs_commit(nvs_handle);
+    ret = nvs_commit(nvs_handle_var);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit NVS changes: %s", esp_err_to_name(ret));
         return ret;
@@ -107,14 +107,14 @@ int get_recent_events(event_log_t* events, int count) {
     }
     
     uint32_t event_count = 0;
-    esp_err_t ret = nvs_get_u32(nvs_handle, NVS_EVENT_COUNT_KEY, &event_count);
+    esp_err_t ret = nvs_get_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, &event_count);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read event count: %s", esp_err_to_name(ret));
         return 0;
     }
     
     int events_to_read = (event_count < count) ? event_count : count;
-    if (events_to_read > 100) events_to_read = 100;  // Only take 100 events
+    if (events_to_read > 100) events_to_read = 100;  // take 100 events
     
     int events_read = 0;
     for (int i = 0; i < events_to_read; i++) {
@@ -123,7 +123,7 @@ int get_recent_events(event_log_t* events, int count) {
         snprintf(key, sizeof(key), "evt_%lu", idx);
         
         size_t required_size = sizeof(event_log_t);
-        ret = nvs_get_blob(nvs_handle, key, &events[i], &required_size);
+        ret = nvs_get_blob(nvs_handle_var, key, &events[i], &required_size);
         if (ret == ESP_OK) {
             events_read++;
         }
@@ -177,9 +177,9 @@ void format_event_message(event_log_t* event, char* buffer, size_t buffer_size) 
              "%s *BoltLock Alert*\n\n"
                 "*Event:* %s\n"
                 "*Details:* %s\n"
-                "*Time:* %ld",
+                "*Time:* %lld",
                 emoji,
                 event_type_str,
                 event->description,
-                event->timestamp);
+                (long long)event->timestamp);
 }
