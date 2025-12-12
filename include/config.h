@@ -51,8 +51,8 @@ typedef enum
 #define MQTT_TOPIC_COMMAND "boltlock/command"
 #define MQTT_TOPIC_EVENTS "boltlock/events"
 
-#define TELEGRAM_BOT_TOKEN "PLACEHOLDER_BOT_TOKEN"
-#define TELEGRAM_CHAT_ID "PLACEHOLDER_CHAT_ID"
+#define TELEGRAM_BOT_TOKEN "8211750808:AAHjzySteM0FmwT3G3QCZfk2xbQWTI0TLuQ"
+#define TELEGRAM_CHAT_ID "7286752705"
 
 #define NVS_NAMESPACE "boltlock"
 #define NVS_LOCK_STATE_KEY "lock_state"
