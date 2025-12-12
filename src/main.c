@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -28,7 +29,7 @@ static void button_monitor_task(void* arg) {
             if (button_data.event == BUTTON_EVENT_PRESS) {
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             } else if (button_data.event == BUTTON_EVENT_LONG_PRESS) {
-                ESP_LOGI(TAG, "Long press detected: %lu ms", button_data.press_duration_ms);
+                ESP_LOGI(TAG, "Long press detected: %" PRIu32 " ms", button_data.press_duration_ms);
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             }
         }
@@ -70,7 +71,6 @@ static void door_monitor_task(void* arg) {
             
             // IF there's been TAMPER_THRESHOLD_COUNT events recorded within a TAMPER_THRESHOLD_TIME_MS window, trigger tamper event
             if (event_count >= TAMPER_THRESHOLD_COUNT) {
-                // gets oldest event in buffer
                 uint8_t oldest_index = (event_index + TAMPER_EVENT_BUFFER_SIZE - event_count) % TAMPER_EVENT_BUFFER_SIZE;
                 int64_t oldest_time = door_event_times[oldest_index];
                 int64_t time_span = current_time - oldest_time;
