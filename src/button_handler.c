@@ -4,110 +4,137 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/timers.h"
 #include "esp_timer.h"
+#include <inttypes.h>
 
 static const char* TAG = "BUTTON_HANDLER";
 static QueueHandle_t button_event_queue = NULL;
 static QueueHandle_t door_event_queue = NULL;
 static QueueHandle_t gpio_evt_queue = NULL;
 
-static volatile int64_t button_press_time = 0;
-static volatile bool button_is_pressed = false;
-static portMUX_TYPE button_state_mux = portMUX_INITIALIZER_UNLOCKED;
+typedef struct {
+    int64_t press_time;
+    bool is_pressed;
+    portMUX_TYPE mux;
+} button_state_t;
+
+static button_state_t unlock_button = {0, false, portMUX_INITIALIZER_UNLOCKED};
+static button_state_t lock_button = {0, false, portMUX_INITIALIZER_UNLOCKED};
 
 static volatile int64_t last_door_change_time = 0;
 
-void IRAM_ATTR button_isr_handler(void* arg) {
+static void IRAM_ATTR button_isr_handler(void* arg) {
     uint32_t gpio_num = (uint32_t) arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
 }
 
-void IRAM_ATTR door_sensor_isr_handler(void* arg) {
+static void IRAM_ATTR door_sensor_isr_handler(void* arg) {
     uint32_t gpio_num = (uint32_t) arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+
+static bool debounce_gpio(uint32_t gpio_num, int expected_level) {
+    const int SAMPLE_COUNT = 5;
+    const int SAMPLE_DELAY_MS = BUTTON_DEBOUNCE_MS / SAMPLE_COUNT;
+    
+    for (int i = 0; i < SAMPLE_COUNT; i++) {
+        if (gpio_get_level(gpio_num) != expected_level) {
+            return false;
+        }
+        if (i < SAMPLE_COUNT - 1) {
+            vTaskDelay(pdMS_TO_TICKS(SAMPLE_DELAY_MS));
+        }
+    }
+    return true;
+}
+
+static void handle_button_event(uint32_t gpio_num, button_state_t* btn_state) {
+    int64_t current_time = esp_timer_get_time() / 1000; // to ms
+    int level = gpio_get_level(gpio_num);
+    
+    if (!debounce_gpio(gpio_num, level)) {
+        return;
+    }
+    
+    if (level == 0) {
+        portENTER_CRITICAL(&btn_state->mux);
+        btn_state->press_time = current_time;
+        btn_state->is_pressed = true;
+        portEXIT_CRITICAL(&btn_state->mux);
+        
+        button_data_t btn_data = {
+            .event = BUTTON_EVENT_PRESS,
+            .press_duration_ms = 0
+        };
+            
+            if (button_event_queue != NULL) {
+                xQueueSend(button_event_queue, &btn_data, 0);
+            }
+            
+            const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
+            ESP_LOGI(TAG, "%s button pressed", btn_name);
+            
+        } else {
+            // button released
+            bool is_pressed;
+            int64_t press_time;
+            
+            portENTER_CRITICAL(&btn_state->mux);
+            is_pressed = btn_state->is_pressed;
+            press_time = btn_state->press_time;
+            btn_state->is_pressed = false;
+            portEXIT_CRITICAL(&btn_state->mux);
+            
+            if (is_pressed) {
+                int64_t release_time = esp_timer_get_time() / 1000;
+                uint32_t duration = (uint32_t)(release_time - press_time);
+                
+                button_data_t btn_data;
+                
+                if (duration > 2000) {
+                    btn_data.event = BUTTON_EVENT_LONG_PRESS;
+                    const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
+                    ESP_LOGI(TAG, "%s button long press: %" PRIu32 " ms", btn_name, duration);
+                } else {
+                    btn_data.event = BUTTON_EVENT_RELEASE;
+                    const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
+                    ESP_LOGI(TAG, "%s button released: %" PRIu32 " ms", btn_name, duration);
+                }
+                
+                btn_data.press_duration_ms = duration;
+                
+                if (button_event_queue != NULL) {
+                    xQueueSend(button_event_queue, &btn_data, 0);
+                }
+            }
+        }
 }
 
 static void gpio_event_task(void* arg) {
     uint32_t io_num;
     
+    ESP_LOGI(TAG, "GPIO event task started");
+    
     while (1) {
         if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            int64_t current_time = esp_timer_get_time() / 1000; // convert to milliseconds
+            int64_t current_time = esp_timer_get_time() / 1000;
             
             if (io_num == UNLOCK_BUTTON_PIN) {
-                int level = gpio_get_level(UNLOCK_BUTTON_PIN);
+                handle_button_event(io_num, &unlock_button);
                 
-                vTaskDelay(pdMS_TO_TICKS(BUTTON_DEBOUNCE_MS));
+            } else if (io_num == LOCK_BUTTON_PIN) {
+                handle_button_event(io_num, &lock_button);
                 
-                if (level == gpio_get_level(UNLOCK_BUTTON_PIN)) {
-                    if (level == 0) {
-                        // falling edge - button pressed
-                        portENTER_CRITICAL(&button_state_mux);
-                        button_press_time = current_time;
-                        button_is_pressed = true;
-                        portEXIT_CRITICAL(&button_state_mux);
-                        
-                        button_data_t btn_data = {
-                            .event = BUTTON_EVENT_PRESS,
-                            .press_duration_ms = 0
-                        };
-                        
-                        if (button_event_queue != NULL) {
-                            xQueueSend(button_event_queue, &btn_data, 0);
-                        }
-                        
-                        ESP_LOGI(TAG, "Button pressed (ISR)");
-                    } else {
-                        // rising edge - button released
-                        bool is_pressed;
-                        int64_t press_time;
-                        
-                        portENTER_CRITICAL(&button_state_mux);
-                        is_pressed = button_is_pressed;
-                        press_time = button_press_time;
-                        button_is_pressed = false;
-                        portEXIT_CRITICAL(&button_state_mux);
-                        
-                        if (is_pressed) {
-                            int64_t release_time = esp_timer_get_time() / 1000; // recapturing AFTER debounce
-                            uint32_t duration = (uint32_t)(release_time - press_time);
-                            
-                            button_data_t btn_data;
-                            
-                            // long press = 2s clicking
-                            if (duration > 2000) {
-                                btn_data.event = BUTTON_EVENT_LONG_PRESS;
-                                ESP_LOGI(TAG, "Button long press (ISR): %lu ms", duration);
-                            } else {
-                                btn_data.event = BUTTON_EVENT_RELEASE;
-                                ESP_LOGI(TAG, "Button released (ISR): %lu ms", duration);
-                            }
-                            
-                            btn_data.press_duration_ms = duration;
-                            
-                            if (button_event_queue != NULL) {
-                                xQueueSend(button_event_queue, &btn_data, 0);
-                            }
-                        }
-                    }
-                }
-            } else if (io_num == DOOR_SENSOR_PIN) {                
+            } else if (io_num == DOOR_SENSOR_PIN) {
                 if (current_time - last_door_change_time > 50) {
                     last_door_change_time = current_time;
                     
                     int level = gpio_get_level(DOOR_SENSOR_PIN);
                     
-                    vTaskDelay(pdMS_TO_TICKS(50));
-                    
-                    if (level == gpio_get_level(DOOR_SENSOR_PIN)) {
-                        int door_state = level; // 0=closed, 1=open
+                    if (debounce_gpio(DOOR_SENSOR_PIN, level)) {
+                        int door_state = level;
                         
-                        if (level == 1) {
-                            ESP_LOGI(TAG, "Door opened (ISR)");
-                        } else {
-                            ESP_LOGI(TAG, "Door closed (ISR)");
-                        }
+                        ESP_LOGI(TAG, "Door %s", (level == 1) ? "OPENED" : "CLOSED");
                         
                         if (door_event_queue != NULL) {
                             xQueueSend(door_event_queue, &door_state, 0);
@@ -146,9 +173,10 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
         return ret;
     }
     
-    ret = gpio_isr_handler_add(UNLOCK_BUTTON_PIN, button_isr_handler, (void*) UNLOCK_BUTTON_PIN);
+    ret = gpio_isr_handler_add(UNLOCK_BUTTON_PIN, button_isr_handler, 
+                                (void*) UNLOCK_BUTTON_PIN);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add button ISR handler: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to add unlock button ISR: %s", esp_err_to_name(ret));
         vQueueDelete(gpio_evt_queue);
         gpio_evt_queue = NULL;
         vQueueDelete(door_event_queue);
@@ -156,10 +184,24 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
         return ret;
     }
     
-    ret = gpio_isr_handler_add(DOOR_SENSOR_PIN, door_sensor_isr_handler, (void*) DOOR_SENSOR_PIN);
+    ret = gpio_isr_handler_add(LOCK_BUTTON_PIN, button_isr_handler, 
+                                (void*) LOCK_BUTTON_PIN);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add door sensor ISR handler: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to add lock button ISR: %s", esp_err_to_name(ret));
         gpio_isr_handler_remove(UNLOCK_BUTTON_PIN);
+        vQueueDelete(gpio_evt_queue);
+        gpio_evt_queue = NULL;
+        vQueueDelete(door_event_queue);
+        door_event_queue = NULL;
+        return ret;
+    }
+    
+    ret = gpio_isr_handler_add(DOOR_SENSOR_PIN, door_sensor_isr_handler, 
+                                (void*) DOOR_SENSOR_PIN);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add door sensor ISR: %s", esp_err_to_name(ret));
+        gpio_isr_handler_remove(UNLOCK_BUTTON_PIN);
+        gpio_isr_handler_remove(LOCK_BUTTON_PIN);
         vQueueDelete(gpio_evt_queue);
         gpio_evt_queue = NULL;
         vQueueDelete(door_event_queue);
@@ -172,13 +214,14 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
         "gpio_event",
         4096,
         NULL,
-        10, 
+        10,
         NULL
     );
     
     if (task_ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create GPIO event task");
         gpio_isr_handler_remove(DOOR_SENSOR_PIN);
+        gpio_isr_handler_remove(LOCK_BUTTON_PIN);
         gpio_isr_handler_remove(UNLOCK_BUTTON_PIN);
         vQueueDelete(gpio_evt_queue);
         gpio_evt_queue = NULL;
@@ -187,7 +230,7 @@ esp_err_t button_handler_init(QueueHandle_t button_queue) {
         return ESP_FAIL;
     }
     
-    ESP_LOGI(TAG, "Button handler initialized with ISR");
+    ESP_LOGI(TAG, "Button handler initialized (unlock + lock buttons)");
     return ESP_OK;
 }
 
