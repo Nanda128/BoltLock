@@ -2,11 +2,53 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_log.h"
+#include "esp_sntp.h"
+#include "network_handler.h"
 #include <string.h>
 #include <stdio.h>
+#include <sys/time.h>
+#include <inttypes.h>
 
 static const char* TAG = "EVENT_LOGGER";
-static nvs_handle_t nvs_handle_var;
+static nvs_handle_t event_logger_nvs_handle;
+static bool sntp_initialized = false;
+
+static void time_sync_notification_cb(struct timeval *tv) {
+    ESP_LOGI(TAG, "Time synchronized via SNTP");
+}
+
+static void initialize_sntp(void) {
+    if (sntp_initialized) {
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Initializing SNTP");
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_setservername(1, "time.nist.gov");
+    esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+    esp_sntp_init();
+    sntp_initialized = true;
+}
+
+static time_t get_current_time(void) {
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+    
+    if (is_network_connected() && !sntp_initialized) {
+        initialize_sntp();
+    }
+    
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    
+    if (timeinfo.tm_year < (2020 - 1900)) {
+        ESP_LOGD(TAG, "Time not yet synchronized, using 0");
+        return 0;
+    }
+    
+    return now;
+}
 
 static const char* event_type_names[] = {
     "LOCK",
@@ -34,7 +76,7 @@ esp_err_t event_logger_init(void) {
         return ret;
     }
     
-    ret = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle_var);
+    ret = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &event_logger_nvs_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS namespace: %s", esp_err_to_name(ret));
         return ret;
@@ -49,7 +91,7 @@ esp_err_t log_event(event_type_t type, const char* description) {
     
     event_log_t event;
     event.type = type;
-    event.timestamp = 0;  // TODO: Get real time from SNTP when WiFi is connected
+    event.timestamp = get_current_time();
     strncpy(event.description, description, sizeof(event.description) - 1);
     event.description[sizeof(event.description) - 1] = '\0';
     
@@ -61,7 +103,7 @@ esp_err_t log_event(event_type_t type, const char* description) {
     ESP_LOGI(TAG, "Event: %s - %s", type_name, description);
         
     uint32_t event_count = 0;
-    ret = nvs_get_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, &event_count);
+    ret = nvs_get_u32(event_logger_nvs_handle, NVS_EVENT_COUNT_KEY, &event_count);
     if (ret == ESP_ERR_NVS_NOT_FOUND) {
         event_count = 0;
     } else if (ret != ESP_OK) {
@@ -70,22 +112,22 @@ esp_err_t log_event(event_type_t type, const char* description) {
     }
     
     char key[16];
-    snprintf(key, sizeof(key), "evt_%lu", event_count % 100);
+    snprintf(key, sizeof(key), "evt_%" PRIu32, event_count % 100);
     
-    ret = nvs_set_blob(nvs_handle_var, key, &event, sizeof(event_log_t));
+    ret = nvs_set_blob(event_logger_nvs_handle, key, &event, sizeof(event_log_t));
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to store event: %s", esp_err_to_name(ret));
         return ret;
     }
     
     event_count++;
-    ret = nvs_set_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, event_count);
+    ret = nvs_set_u32(event_logger_nvs_handle, NVS_EVENT_COUNT_KEY, event_count);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to update event count: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    ret = nvs_commit(nvs_handle_var);
+    ret = nvs_commit(event_logger_nvs_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit NVS changes: %s", esp_err_to_name(ret));
         return ret;
@@ -96,7 +138,7 @@ esp_err_t log_event(event_type_t type, const char* description) {
     
     // TODO: Send to network queue for transmission via MQTT/Telegram
     // NETWORK INTEGRATION HERE
-    ESP_LOGI(TAG, "Event logged successfully (count: %lu)", event_count);
+    ESP_LOGI(TAG, "Event logged successfully (count: %" PRIu32 ")", event_count);
     
     return ESP_OK;
 }
@@ -107,7 +149,7 @@ int get_recent_events(event_log_t* events, int count) {
     }
     
     uint32_t event_count = 0;
-    esp_err_t ret = nvs_get_u32(nvs_handle_var, NVS_EVENT_COUNT_KEY, &event_count);
+    esp_err_t ret = nvs_get_u32(event_logger_nvs_handle, NVS_EVENT_COUNT_KEY, &event_count);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read event count: %s", esp_err_to_name(ret));
         return 0;
@@ -120,10 +162,10 @@ int get_recent_events(event_log_t* events, int count) {
     for (int i = 0; i < events_to_read; i++) {
         uint32_t idx = (event_count - 1 - i) % 100;
         char key[16];
-        snprintf(key, sizeof(key), "evt_%lu", idx);
+        snprintf(key, sizeof(key), "evt_%" PRIu32, idx);
         
         size_t required_size = sizeof(event_log_t);
-        ret = nvs_get_blob(nvs_handle_var, key, &events[i], &required_size);
+        ret = nvs_get_blob(event_logger_nvs_handle, key, &events[i], &required_size);
         if (ret == ESP_OK) {
             events_read++;
         }

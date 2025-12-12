@@ -5,6 +5,7 @@
 #include "config.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "u8g2.h"
 
 esp_err_t oled_display_init(void);
 

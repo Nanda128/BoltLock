@@ -11,9 +11,7 @@
 // Status LED pins
 #define STATUS_LED_BUILTIN GPIO_NUM_2
 #define STATUS_LED_RED GPIO_NUM_12        // locked LED (on the left)
-#define STATUS_LED_GREEN GPIO_NUM_13      // unlocked LED (on the right)
-
-// I couldn't find a Green LED so despite writing GREEN here, both LEDs are Red
+#define STATUS_LED_UNLOCKED GPIO_NUM_13   // unlocked LED (on the right, physically red)
 
 #define OLED_SDA_PIN GPIO_NUM_21
 #define OLED_SCL_PIN GPIO_NUM_22
@@ -94,5 +92,4 @@ typedef enum {
 // ==================== DISPLAY CONFIGURATION ====================
 
 #define OLED_ENABLED 1 
-#define OLED_REFRESH_MS 500 
 #endif // CONFIG_H

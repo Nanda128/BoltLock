@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include <inttypes.h>
 
 static const char* TAG = "LOCK_CONTROL";
 static lock_state_t current_lock_state = LOCK_STATE_LOCKED;
@@ -43,7 +44,7 @@ static esp_err_t servo_write_angle(uint8_t angle) {
         return ret;
     }
     
-    ESP_LOGI(TAG, "Servo moved to %d degrees (duty: %lu)", angle, duty);
+    ESP_LOGI(TAG, "Servo moved to %d degrees (duty: %" PRIu32 ")", angle, duty);
     vTaskDelay(pdMS_TO_TICKS(SERVO_MOVE_TIME_MS));
     return ESP_OK;
 #else
@@ -142,7 +143,7 @@ esp_err_t lock_control_init(void) {
     gpio_config_t io_conf_leds = {
         .pin_bit_mask = (1ULL << STATUS_LED_BUILTIN) | 
                         (1ULL << STATUS_LED_RED) | 
-                        (1ULL << STATUS_LED_GREEN),
+                        (1ULL << STATUS_LED_UNLOCKED),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -156,7 +157,7 @@ esp_err_t lock_control_init(void) {
     
     gpio_set_level(STATUS_LED_BUILTIN, 0);
     gpio_set_level(STATUS_LED_RED, 1); 
-    gpio_set_level(STATUS_LED_GREEN, 0); 
+    gpio_set_level(STATUS_LED_UNLOCKED, 0); 
     
     current_lock_state = LOCK_STATE_LOCKED;
     
@@ -265,25 +266,25 @@ void update_status_led(void) {
         case LOCK_STATE_LOCKED:
             gpio_set_level(STATUS_LED_BUILTIN, 0);
             gpio_set_level(STATUS_LED_RED, 1); 
-            gpio_set_level(STATUS_LED_GREEN, 0); 
+            gpio_set_level(STATUS_LED_UNLOCKED, 0); 
             break;
             
         case LOCK_STATE_UNLOCKING:
             gpio_set_level(STATUS_LED_BUILTIN, 1);
             gpio_set_level(STATUS_LED_RED, 1);
-            gpio_set_level(STATUS_LED_GREEN, 1);
+            gpio_set_level(STATUS_LED_UNLOCKED, 1);
             break;
             
         case LOCK_STATE_UNLOCKED:
             gpio_set_level(STATUS_LED_BUILTIN, 1);
             gpio_set_level(STATUS_LED_RED, 0); 
-            gpio_set_level(STATUS_LED_GREEN, 1); 
+            gpio_set_level(STATUS_LED_UNLOCKED, 1); 
             break;
             
         case LOCK_STATE_ERROR:
             gpio_set_level(STATUS_LED_BUILTIN, 1);
             gpio_set_level(STATUS_LED_RED, 1);
-            gpio_set_level(STATUS_LED_GREEN, 1);
+            gpio_set_level(STATUS_LED_UNLOCKED, 1);
             break;
     }
 }
