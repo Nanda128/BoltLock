@@ -4,7 +4,6 @@
 // ==================== HARDWARE PIN CONFIGURATION ====================
 
 #define LOCK_SERVO_PIN GPIO_NUM_25    // Servo signal
-#define DOOR_SENSOR_PIN GPIO_NUM_26   // Reed switch (DOOR SENSOR)
 #define UNLOCK_BUTTON_PIN GPIO_NUM_27 // UNLOCK BUTTON IS AT THE 2ND BUTTON FROM THE TOP
 #define LOCK_BUTTON_PIN GPIO_NUM_14   // LOCK BUTTON IS AT THE 1ST BUTTON ON THE VERY TOP
 
@@ -31,11 +30,7 @@
 
 #define BUTTON_DEBOUNCE_MS 50      // button debounce delay
 #define AUTO_LOCK_TIMEOUT_MS 5000  // auto-lock after 5 seconds
-#define DOOR_CHECK_INTERVAL_MS 100 // door sensor polling interval
 #define SERVO_MOVE_TIME_MS 500     // time for servo to complete movement
-
-#define TAMPER_THRESHOLD_COUNT 5      // rapid state changes to trigger tamper
-#define TAMPER_THRESHOLD_TIME_MS 3000 // time window for tamper detection
 
 // ==================== STATE DEFINITIONS ====================
 
@@ -49,21 +44,10 @@ typedef enum
 
 typedef enum
 {
-    DOOR_CLOSED,
-    DOOR_OPEN,
-    DOOR_TAMPERED
-} door_state_t;
-
-typedef enum
-{
     EVENT_LOCK,
     EVENT_UNLOCK,
-    EVENT_DOOR_OPENED,
-    EVENT_DOOR_CLOSED,
     EVENT_BUTTON_PRESS,
-    EVENT_REMOTE_UNLOCK,
-    EVENT_UNAUTHORIZED_ACCESS,
-    EVENT_TAMPER_DETECTED
+    EVENT_REMOTE_UNLOCK
 } event_type_t;
 
 // ==================== NETWORK CONFIGURATION ====================

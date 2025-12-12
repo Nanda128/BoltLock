@@ -43,24 +43,6 @@ static void handle_locked_state(sm_event_data_t* event) {
             }
             break;
             
-        case SM_EVENT_DOOR_OPENED:
-            // door opened while locked: tampering
-            ESP_LOGW(TAG, "SECURITY ALERT: Door opened while locked!");
-            log_event(EVENT_UNAUTHORIZED_ACCESS, "Door opened while locked - security breach");
-            
-            // TODO: Send urgent notification
-            // send_telegram_notification("SECURITY ALERT: Door opened while locked!");
-            break;
-            
-        case SM_EVENT_TAMPER_DETECTED:
-            // door keeps changing state rapidly while locked: tampering
-            ESP_LOGE(TAG, "CRITICAL: Tampering detected on door lock!");
-            log_event(EVENT_TAMPER_DETECTED, "Rapid door manipulation detected - possible forced entry attempt");
-            
-            // TODO: Send urgent notification
-            // send_telegram_notification("CRITICAL: Lock tampering detected!");
-            break;
-            
         default:
             break;
     }
@@ -68,76 +50,29 @@ static void handle_locked_state(sm_event_data_t* event) {
 
 static void handle_unlocked_state(sm_event_data_t* event) {
     switch (event->event) {
-        case SM_EVENT_DOOR_OPENED:
-            ESP_LOGI(TAG, "Door opened while unlocked - normal operation");
-            log_event(EVENT_DOOR_OPENED, "Door opened");
-            
-            // don't lock while door is open
-            if (auto_lock_timer != NULL) {
-                xTimerStop(auto_lock_timer, 0);
-            }
-            break;
-            
-        case SM_EVENT_DOOR_CLOSED:
-            ESP_LOGI(TAG, "Door closed - restarting auto-lock timer");
-            log_event(EVENT_DOOR_CLOSED, "Door closed");
-            
-            if (auto_lock_timer != NULL) {
-                xTimerReset(auto_lock_timer, 0);
-            }
-            break;
-            
         case SM_EVENT_TIMEOUT:
             ESP_LOGI(TAG, "Auto-lock timeout - locking door");
-            
-            // lock if door is closed
-            if (get_door_state() == DOOR_CLOSED) {
-                lock_door();
-                log_event(EVENT_LOCK, "Auto-lock after timeout");
-            } else {
-                ESP_LOGW(TAG, "Cannot auto-lock - door is still open");
-                xTimerReset(auto_lock_timer, 0);
-            }
+            lock_door();
+            log_event(EVENT_LOCK, "Auto-lock after timeout");
             break;
             
         case SM_EVENT_BUTTON_PRESS:
             ESP_LOGI(TAG, "Button pressed in UNLOCKED state - manually locking");
-            if (get_door_state() == DOOR_CLOSED) {
-                lock_door();
-                log_event(EVENT_LOCK, "Manual lock via button");
-                
-                if (auto_lock_timer != NULL) {
-                    xTimerStop(auto_lock_timer, 0);
-                }
-            } else {
-                ESP_LOGW(TAG, "Cannot lock - door is open");
+            lock_door();
+            log_event(EVENT_LOCK, "Manual lock via button");
+            
+            if (auto_lock_timer != NULL) {
+                xTimerStop(auto_lock_timer, 0);
             }
             break;
             
         case SM_EVENT_REMOTE_LOCK:
             ESP_LOGI(TAG, "Remote lock command received");
-            if (get_door_state() == DOOR_CLOSED) {
-                lock_door();
-                log_event(EVENT_LOCK, "Remote lock via network");
-                
-                if (auto_lock_timer != NULL) {
-                    xTimerStop(auto_lock_timer, 0);
-                }
-            } else {
-                ESP_LOGW(TAG, "Cannot lock remotely - door is open");
-            }
-            break;
-            
-        case SM_EVENT_TAMPER_DETECTED:
-            ESP_LOGW(TAG, "WARNING: Tampering detected while door unlocked");
-            log_event(EVENT_TAMPER_DETECTED, "Rapid door manipulation while unlocked - suspicious activity");
+            lock_door();
+            log_event(EVENT_LOCK, "Remote lock via network");
             
             if (auto_lock_timer != NULL) {
                 xTimerStop(auto_lock_timer, 0);
-            }
-            if (get_door_state() == DOOR_CLOSED) {
-                lock_door();
-                ESP_LOGI(TAG, "Emergency lock due to tampering");
             }
             break;
             

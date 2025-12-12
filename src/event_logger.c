@@ -53,12 +53,8 @@ static time_t get_current_time(void) {
 static const char* event_type_names[] = {
     "LOCK",
     "UNLOCK",
-    "DOOR_OPENED",
-    "DOOR_CLOSED",
     "BUTTON_PRESS",
-    "REMOTE_UNLOCK",
-    "UNAUTHORIZED_ACCESS",
-    "TAMPER_DETECTED"
+    "REMOTE_UNLOCK"
 };
 
 esp_err_t event_logger_init(void) {
@@ -191,23 +187,11 @@ void format_event_message(event_log_t* event, char* buffer, size_t buffer_size) 
         case EVENT_UNLOCK:
             emoji = "🔓";
             break;
-        case EVENT_DOOR_OPENED:
-            emoji = "🚪";
-            break;
-        case EVENT_DOOR_CLOSED:
-            emoji = "🚪";
-            break;
         case EVENT_BUTTON_PRESS:
             emoji = "👆";
             break;
         case EVENT_REMOTE_UNLOCK:
             emoji = "📱";
-            break;
-        case EVENT_UNAUTHORIZED_ACCESS:
-            emoji = "⚠️";
-            break;
-        case EVENT_TAMPER_DETECTED:
-            emoji = "🚨";
             break;
     }
     

@@ -36,66 +36,6 @@ static void button_monitor_task(void* arg) {
     }
 }
 
-static void door_monitor_task(void* arg) {
-    QueueHandle_t door_queue = get_door_event_queue();
-    
-    if (door_queue == NULL) {
-        ESP_LOGE(TAG, "Door event queue not available!");
-        vTaskDelete(NULL);
-        return;
-    }
-    
-    #define TAMPER_EVENT_BUFFER_SIZE 10
-    int64_t door_event_times[TAMPER_EVENT_BUFFER_SIZE] = {0};
-    uint8_t event_index = 0;
-    uint8_t event_count = 0;
-    
-    ESP_LOGI(TAG, "Door monitor task started (ISR-driven)");
-    
-    while (1) {
-        int door_state_value;
-        
-        if (xQueueReceive(door_queue, &door_state_value, portMAX_DELAY) == pdTRUE) {
-            int64_t current_time = esp_timer_get_time() / 1000; // to ms
-            
-            door_state_t current_state = (door_state_value == 1) ? DOOR_OPEN : DOOR_CLOSED;
-            
-            ESP_LOGI(TAG, "Door event received (ISR): %s", 
-                    current_state == DOOR_OPEN ? "OPEN" : "CLOSED");
-            
-            door_event_times[event_index] = current_time;
-            event_index = (event_index + 1) % TAMPER_EVENT_BUFFER_SIZE;
-            if (event_count < TAMPER_EVENT_BUFFER_SIZE) {
-                event_count++;
-            }
-            
-            // IF there's been TAMPER_THRESHOLD_COUNT events recorded within a TAMPER_THRESHOLD_TIME_MS window, trigger tamper event
-            if (event_count >= TAMPER_THRESHOLD_COUNT) {
-                uint8_t oldest_index = (event_index + TAMPER_EVENT_BUFFER_SIZE - event_count) % TAMPER_EVENT_BUFFER_SIZE;
-                int64_t oldest_time = door_event_times[oldest_index];
-                int64_t time_span = current_time - oldest_time;
-                
-                if (time_span < TAMPER_THRESHOLD_TIME_MS) {
-                    ESP_LOGE(TAG, "TAMPER DETECTED: %d door events in %lld ms", 
-                            event_count, time_span);
-                    send_sm_event(SM_EVENT_TAMPER_DETECTED, NULL);
-                    
-                    event_count = 0;
-                    event_index = 0;
-                    memset(door_event_times, 0, sizeof(door_event_times));
-                }
-            }
-            
-            // sm means state machine btw
-            if (current_state == DOOR_OPEN) {
-                send_sm_event(SM_EVENT_DOOR_OPENED, NULL);
-            } else {
-                send_sm_event(SM_EVENT_DOOR_CLOSED, NULL);
-            }
-        }
-    }
-}
-
 void app_main(void) {
     esp_err_t ret;
     
@@ -145,11 +85,6 @@ void app_main(void) {
         return;
     }
 
-    if (xTaskCreate(door_monitor_task, "door_monitor", 2048, NULL, 5, NULL) != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create door monitor task!");
-        return;
-    }
-    
     // REMINDER: UPDATE THE WIFI CREDENTIALS IN config.h BEFORE ENABLING NETWORK
     ESP_LOGI(TAG, "Network initialization disabled - configure WiFi credentials first");
 
@@ -167,8 +102,6 @@ void app_main(void) {
     ESP_LOGI(TAG, "System initialization complete!");
     ESP_LOGI(TAG, "Lock State: %s", 
             get_lock_state() == LOCK_STATE_LOCKED ? "LOCKED" : "UNLOCKED");
-    ESP_LOGI(TAG, "Door State: %s", 
-            get_door_state() == DOOR_CLOSED ? "CLOSED" : "OPEN");
     ESP_LOGI(TAG, "=======================================");
     
     while (1) {
@@ -177,9 +110,8 @@ void app_main(void) {
         // check every 30 seconds
         static int counter = 0;
         if (++counter >= 30) {
-            ESP_LOGI(TAG, "Status: Lock=%s, Door=%s, Network=%s",
+            ESP_LOGI(TAG, "Status: Lock=%s, Network=%s",
                     get_lock_state() == LOCK_STATE_LOCKED ? "LOCKED" : "UNLOCKED",
-                    get_door_state() == DOOR_CLOSED ? "CLOSED" : "OPEN",
                     is_network_connected() ? "CONNECTED" : "DISCONNECTED");
             counter = 0;
         }

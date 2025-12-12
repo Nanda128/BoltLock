@@ -114,19 +114,6 @@ esp_err_t lock_control_init(void) {
     ESP_LOGI(TAG, "Relay initialized to LOCKED state");
 #endif
     
-    gpio_config_t io_conf_input = {
-        .pin_bit_mask = (1ULL << DOOR_SENSOR_PIN),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_ANYEDGE,
-    };
-    ret = gpio_config(&io_conf_input);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure door sensor GPIO");
-        return ret;
-    }
-    
     gpio_config_t io_conf_button = {
         .pin_bit_mask = (1ULL << UNLOCK_BUTTON_PIN) | (1ULL << LOCK_BUTTON_PIN),
         .mode = GPIO_MODE_INPUT,
@@ -246,11 +233,6 @@ lock_state_t get_lock_state(void) {
         state = LOCK_STATE_ERROR;
     }
     return state;
-}
-
-door_state_t get_door_state(void) {
-    int level = gpio_get_level(DOOR_SENSOR_PIN);
-    return (level == 0) ? DOOR_CLOSED : DOOR_OPEN;
 }
 
 void update_status_led(void) {

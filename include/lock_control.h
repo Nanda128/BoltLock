@@ -12,8 +12,6 @@ esp_err_t unlock_door(void);
 
 lock_state_t get_lock_state(void);
 
-door_state_t get_door_state(void);
-
 void update_status_led(void);
 
 #endif // LOCK_CONTROL_H

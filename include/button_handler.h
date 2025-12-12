@@ -20,6 +20,4 @@ typedef struct
 
 esp_err_t button_handler_init(QueueHandle_t button_queue);
 
-QueueHandle_t get_door_event_queue(void);
-
 #endif // BUTTON_HANDLER_H
