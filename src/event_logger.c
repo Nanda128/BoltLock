@@ -194,8 +194,7 @@ void format_event_message(event_log_t* event, char* buffer, size_t buffer_size) 
         return;
     }
     
-    // emojis look better on mobiles but it can look weird on some clients
-    // TODO: Make this configurable between maybe text and emoji later
+#if USE_EMOJI_FORMAT
     const char* emoji = "ℹ️";
     
     switch (event->type) {
@@ -212,6 +211,24 @@ void format_event_message(event_log_t* event, char* buffer, size_t buffer_size) 
             emoji = "📱";
             break;
     }
+#else
+    const char* emoji = "[i]";
+    
+    switch (event->type) {
+        case EVENT_LOCK:
+            emoji = "[LOCK]";
+            break;
+        case EVENT_UNLOCK:
+            emoji = "[UNLOCK]";
+            break;
+        case EVENT_BUTTON_PRESS:
+            emoji = "[BUTTON]";
+            break;
+        case EVENT_REMOTE_UNLOCK:
+            emoji = "[REMOTE]";
+            break;
+    }
+#endif
     
     const char* event_type_str = "UNKNOWN";
     if (event->type >= 0 && event->type < (sizeof(event_type_names)/sizeof(event_type_names[0]))) {
