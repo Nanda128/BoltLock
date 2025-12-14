@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 
-// WARNING: SERVO AND SPEAKER MIGHT NOT WORK SIMULTANEOUSLY ON 3.3V POWER SUPPLY
+// WARNING: SERVO AND SPEAKER MIGHT NOT WORK ON 3.3V POWER SUPPLY
 
 #define LOCK_SERVO_PIN GPIO_NUM_25
 #define UNLOCK_BUTTON_PIN GPIO_NUM_27 // UNLOCK BUTTON IS SECOND FROM THE TOP
@@ -30,6 +30,8 @@
 #define BUTTON_DEBOUNCE_MS 50      // button debounce delay
 #define AUTO_LOCK_TIMEOUT_MS 30000  // auto-lock after 30 seconds
 #define SERVO_MOVE_TIME_MS 500     // time for servo to complete movement
+
+#define USE_EMOJI_FORMAT 1         // use emojis in event messages (1=emoji, 0=text)
 
 typedef enum
 {
