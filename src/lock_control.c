@@ -142,9 +142,42 @@ esp_err_t lock_control_init(void) {
         return ret;
     }
     
-    gpio_set_level(STATUS_LED_BUILTIN, 0);
-    gpio_set_level(STATUS_LED_RED, 1); 
-    gpio_set_level(STATUS_LED_UNLOCKED, 0); 
+    ESP_LOGI(TAG, "LED GPIO configured: BUILTIN=%d, RED=%d, GREEN=%d", 
+            STATUS_LED_BUILTIN, STATUS_LED_RED, STATUS_LED_UNLOCKED);
+    
+    ESP_LOGI(TAG, "Testing LEDs - COMMON CATHODE (HIGH=ON)...");
+    gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
+    ESP_LOGI(TAG, "  BUILTIN=HIGH (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_BUILTIN, 0);  // OFF
+    
+    gpio_set_level(STATUS_LED_RED, 1);      // ON
+    ESP_LOGI(TAG, "  RED=HIGH (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_RED, 0);      // OFF
+    
+    gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
+    ESP_LOGI(TAG, "  GREEN=HIGH (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_UNLOCKED, 0); // OFF
+    
+    ESP_LOGI(TAG, "Testing LEDs - COMMON ANODE (LOW=ON)...");
+    gpio_set_level(STATUS_LED_BUILTIN, 0);  // ON
+    ESP_LOGI(TAG, "  BUILTIN=LOW (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_BUILTIN, 1);  // OFF
+    
+    gpio_set_level(STATUS_LED_RED, 0);      // ON
+    ESP_LOGI(TAG, "  RED=LOW (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_RED, 1);      // OFF
+    
+    gpio_set_level(STATUS_LED_UNLOCKED, 0); // ON
+    ESP_LOGI(TAG, "  GREEN=LOW (should be ON)");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    gpio_set_level(STATUS_LED_UNLOCKED, 1); // OFF
+    
+    ESP_LOGI(TAG, "LED test complete - which lights worked?");
     
     current_lock_state = LOCK_STATE_LOCKED;
     
@@ -244,29 +277,34 @@ void update_status_led(void) {
         state = LOCK_STATE_ERROR;
     }
     
+    // HIGH=ON, LOW=OFF
     switch (state) {
         case LOCK_STATE_LOCKED:
-            gpio_set_level(STATUS_LED_BUILTIN, 0);
-            gpio_set_level(STATUS_LED_RED, 1); 
-            gpio_set_level(STATUS_LED_UNLOCKED, 0); 
+            gpio_set_level(STATUS_LED_BUILTIN, 0);  // OFF
+            gpio_set_level(STATUS_LED_RED, 1);      // ON
+            gpio_set_level(STATUS_LED_UNLOCKED, 0); // OFF
+            ESP_LOGI(TAG, "LED: RED=HIGH (locked)");
             break;
             
         case LOCK_STATE_UNLOCKING:
-            gpio_set_level(STATUS_LED_BUILTIN, 1);
-            gpio_set_level(STATUS_LED_RED, 1);
-            gpio_set_level(STATUS_LED_UNLOCKED, 1);
+            gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
+            gpio_set_level(STATUS_LED_RED, 1);      // ON
+            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
+            ESP_LOGI(TAG, "LED: ALL=HIGH (unlocking)");
             break;
             
         case LOCK_STATE_UNLOCKED:
-            gpio_set_level(STATUS_LED_BUILTIN, 1);
-            gpio_set_level(STATUS_LED_RED, 0); 
-            gpio_set_level(STATUS_LED_UNLOCKED, 1); 
+            gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
+            gpio_set_level(STATUS_LED_RED, 0);      // OFF
+            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
+            ESP_LOGI(TAG, "LED: GREEN=HIGH (unlocked)");
             break;
             
         case LOCK_STATE_ERROR:
-            gpio_set_level(STATUS_LED_BUILTIN, 1);
-            gpio_set_level(STATUS_LED_RED, 1);
-            gpio_set_level(STATUS_LED_UNLOCKED, 1);
+            gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
+            gpio_set_level(STATUS_LED_RED, 1);      // ON
+            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
+            ESP_LOGI(TAG, "LED: ALL=HIGH (error)");
             break;
     }
 }

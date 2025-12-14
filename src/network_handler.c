@@ -10,7 +10,6 @@
 static const char* TAG = "NETWORK";
 static bool wifi_connected = false;
 
-// WiFi event handler for connection management
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
@@ -28,24 +27,20 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 }
 
 esp_err_t network_init(void) {
-    // Initialize network interface
     esp_err_t ret = esp_netif_init();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize network interface: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    // Create default event loop
     ret = esp_event_loop_create_default();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create event loop: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    // Create default WiFi station interface
     esp_netif_create_default_wifi_sta();
     
-    // Initialize WiFi with default config
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ret = esp_wifi_init(&cfg);
     if (ret != ESP_OK) {
@@ -53,7 +48,6 @@ esp_err_t network_init(void) {
         return ret;
     }
     
-    // Register event handlers
     ret = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register WiFi event handler: %s", esp_err_to_name(ret));
@@ -66,7 +60,6 @@ esp_err_t network_init(void) {
         return ret;
     }
     
-    // Configure WiFi with SSID and password from config.h
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = WIFI_SSID,
@@ -74,7 +67,6 @@ esp_err_t network_init(void) {
         },
     };
     
-    // Set WiFi mode to station and start
     ret = esp_wifi_set_mode(WIFI_MODE_STA);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set WiFi mode: %s", esp_err_to_name(ret));
@@ -98,23 +90,25 @@ esp_err_t network_init(void) {
 }
 
 esp_err_t send_telegram_notification(const char* message) {
-    // Validate message parameter
     if (message == NULL) {
         ESP_LOGE(TAG, "Invalid message: null pointer");
         return ESP_ERR_INVALID_ARG;
     }
     
-    // Check WiFi connection status
     if (!wifi_connected) {
         ESP_LOGW(TAG, "WiFi not connected. Cannot send Telegram notification.");
         return ESP_ERR_INVALID_STATE;
     }
     
-    // Construct Telegram Bot API URL
+    if (strcmp(TELEGRAM_BOT_TOKEN, "YOUR_TELEGRAM_BOT_TOKEN_HERE") == 0 ||
+        strcmp(TELEGRAM_CHAT_ID, "YOUR_TELEGRAM_CHAT_ID_HERE") == 0) {
+        ESP_LOGE(TAG, "Telegram credentials not configured in config.h");
+        return ESP_ERR_INVALID_STATE;
+    }
+    
     char url[256];
     snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage", TELEGRAM_BOT_TOKEN);
     
-    // Initialize HTTP client
     esp_http_client_config_t http_config = {
         .url = url,
         .method = HTTP_METHOD_POST,
@@ -126,17 +120,14 @@ esp_err_t send_telegram_notification(const char* message) {
         return ESP_FAIL;
     }
     
-    // Format POST data as JSON
     char post_data[512];
     snprintf(post_data, sizeof(post_data),
-             "{\"chat_id\":\"%s\",\"text\":\"%s\",\"parse_mode\":\"HTML\"}",
-             TELEGRAM_CHAT_ID, message);
+            "{\"chat_id\":\"%s\",\"text\":\"%s\",\"parse_mode\":\"HTML\"}",
+            TELEGRAM_CHAT_ID, message);
     
-    // Set Content-Type header
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_post_field(client, post_data, strlen(post_data));
     
-    // Send POST request and handle response
     esp_err_t err = esp_http_client_perform(client);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
@@ -144,7 +135,6 @@ esp_err_t send_telegram_notification(const char* message) {
         return err;
     }
     
-    // Log response status
     int status_code = esp_http_client_get_status_code(client);
     if (status_code == 200) {
         ESP_LOGI(TAG, "Telegram notification sent successfully (HTTP %d)", status_code);
@@ -152,7 +142,6 @@ esp_err_t send_telegram_notification(const char* message) {
         ESP_LOGW(TAG, "Telegram notification failed with HTTP status %d", status_code);
     }
     
-    // Clean up HTTP client resources
     esp_http_client_cleanup(client);
     
     return (status_code == 200) ? ESP_OK : ESP_FAIL;

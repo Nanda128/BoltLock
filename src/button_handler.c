@@ -48,58 +48,48 @@ static void handle_button_event(uint32_t gpio_num, button_state_t* btn_state) {
         return;
     }
     
+    button_id_t btn_id = (gpio_num == UNLOCK_BUTTON_PIN) ? BUTTON_ID_UNLOCK : BUTTON_ID_LOCK;
+    const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
+    
     if (level == 0) {
         portENTER_CRITICAL(&btn_state->mux);
         btn_state->press_time = current_time;
         btn_state->is_pressed = true;
         portEXIT_CRITICAL(&btn_state->mux);
         
-        button_data_t btn_data = {
-            .event = BUTTON_EVENT_PRESS,
-            .press_duration_ms = 0
-        };
+        ESP_LOGI(TAG, "%s button pressed", btn_name);
+        
+    } else {
+        bool is_pressed;
+        int64_t press_time;
+        
+        portENTER_CRITICAL(&btn_state->mux);
+        is_pressed = btn_state->is_pressed;
+        press_time = btn_state->press_time;
+        btn_state->is_pressed = false;
+        portEXIT_CRITICAL(&btn_state->mux);
+        
+        if (is_pressed) {
+            int64_t release_time = esp_timer_get_time() / 1000;
+            uint32_t duration = (uint32_t)(release_time - press_time);
+            
+            button_data_t btn_data;
+            btn_data.button_id = btn_id;
+            btn_data.press_duration_ms = duration;
+            
+            if (duration > 2000) {
+                btn_data.event = BUTTON_EVENT_LONG_PRESS;
+                ESP_LOGI(TAG, "%s button long press: %" PRIu32 " ms", btn_name, duration);
+            } else {
+                btn_data.event = BUTTON_EVENT_PRESS;
+                ESP_LOGI(TAG, "%s button released: %" PRIu32 " ms", btn_name, duration);
+            }
             
             if (button_event_queue != NULL) {
                 xQueueSend(button_event_queue, &btn_data, 0);
             }
-            
-            const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
-            ESP_LOGI(TAG, "%s button pressed", btn_name);
-            
-        } else {
-            // button released
-            bool is_pressed;
-            int64_t press_time;
-            
-            portENTER_CRITICAL(&btn_state->mux);
-            is_pressed = btn_state->is_pressed;
-            press_time = btn_state->press_time;
-            btn_state->is_pressed = false;
-            portEXIT_CRITICAL(&btn_state->mux);
-            
-            if (is_pressed) {
-                int64_t release_time = esp_timer_get_time() / 1000;
-                uint32_t duration = (uint32_t)(release_time - press_time);
-                
-                button_data_t btn_data;
-                
-                if (duration > 2000) {
-                    btn_data.event = BUTTON_EVENT_LONG_PRESS;
-                    const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
-                    ESP_LOGI(TAG, "%s button long press: %" PRIu32 " ms", btn_name, duration);
-                } else {
-                    btn_data.event = BUTTON_EVENT_RELEASE;
-                    const char* btn_name = (gpio_num == UNLOCK_BUTTON_PIN) ? "UNLOCK" : "LOCK";
-                    ESP_LOGI(TAG, "%s button released: %" PRIu32 " ms", btn_name, duration);
-                }
-                
-                btn_data.press_duration_ms = duration;
-                
-                if (button_event_queue != NULL) {
-                    xQueueSend(button_event_queue, &btn_data, 0);
-                }
-            }
         }
+    }
 }
 
 static void gpio_event_task(void* arg) {
