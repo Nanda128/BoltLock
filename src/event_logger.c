@@ -111,7 +111,25 @@ esp_err_t log_event(event_type_t type, const char* description) {
     snprintf(key, sizeof(key), "evt_%" PRIu32, event_count % 100);
     
     ret = nvs_set_blob(event_logger_nvs_handle, key, &event, sizeof(event_log_t));
-    if (ret != ESP_OK) {
+    if (ret == ESP_ERR_NVS_NOT_ENOUGH_SPACE) {
+        ESP_LOGW(TAG, "NVS storage full, erasing old event data...");
+        nvs_close(event_logger_nvs_handle);
+        ret = nvs_flash_erase_partition("nvs");
+        if (ret == ESP_OK) {
+            ret = nvs_flash_init_partition("nvs");
+            if (ret == ESP_OK) {
+                ret = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &event_logger_nvs_handle);
+                if (ret == ESP_OK) {
+                    event_count = 0;
+                    ret = nvs_set_blob(event_logger_nvs_handle, key, &event, sizeof(event_log_t));
+                }
+            }
+        }
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to recover from storage full condition: %s", esp_err_to_name(ret));
+            return ret;
+        }
+    } else if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to store event: %s", esp_err_to_name(ret));
         return ret;
     }

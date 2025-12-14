@@ -1,38 +1,35 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// ==================== HARDWARE PIN CONFIGURATION ====================
+#include "driver/gpio.h"
 
-#define LOCK_SERVO_PIN GPIO_NUM_25    // Servo signal
-#define UNLOCK_BUTTON_PIN GPIO_NUM_27 // UNLOCK BUTTON IS AT THE 2ND BUTTON FROM THE TOP
-#define LOCK_BUTTON_PIN GPIO_NUM_14   // LOCK BUTTON IS AT THE 1ST BUTTON ON THE VERY TOP
+// WARNING: SERVO AND SPEAKER MIGHT NOT WORK SIMULTANEOUSLY ON 3.3V POWER SUPPLY
 
-// Status LED pins
+#define LOCK_SERVO_PIN GPIO_NUM_25
+#define UNLOCK_BUTTON_PIN GPIO_NUM_27 // UNLOCK BUTTON IS SECOND FROM THE TOP
+#define LOCK_BUTTON_PIN GPIO_NUM_14   // LOCK BUTTON IS AT THE VERY TOP
+
+#define BUZZER_PIN GPIO_NUM_26        
+
 #define STATUS_LED_BUILTIN GPIO_NUM_2
-#define STATUS_LED_RED GPIO_NUM_12      // locked LED (on the left)
-#define STATUS_LED_UNLOCKED GPIO_NUM_13 // unlocked LED (on the right, physically red)
-
-// ==================== SERVO CONFIGURATION ====================
+#define STATUS_LED_RED GPIO_NUM_12      // LOCKED LED IS AT THE VERY TOP
+#define STATUS_LED_UNLOCKED GPIO_NUM_13 // UNLOCKED LED IS SECOND FROM THE TOP
 
 #define USE_SERVO_MOTOR 1
 
 #if USE_SERVO_MOTOR
-#define SERVO_LOCKED_ANGLE 0    // Angle when locked (in degrees)
-#define SERVO_UNLOCKED_ANGLE 90 // Angle when unlocked (in degrees)
-#define SERVO_PWM_FREQ 50       // Standard servo frequency (Hz)
-#define SERVO_MIN_PULSE_US 500  // Minimum pulse width (us)
-#define SERVO_MAX_PULSE_US 2500 // Maximum pulse width (us)
+#define SERVO_LOCKED_ANGLE 0
+#define SERVO_UNLOCKED_ANGLE 90
+#define SERVO_PWM_FREQ 50
+#define SERVO_MIN_PULSE_US 500
+#define SERVO_MAX_PULSE_US 2500
 #else
 #define RELAY_ACTIVE_LOW 0
 #endif
 
-// ==================== TIMING CONFIGURATION ====================
-
 #define BUTTON_DEBOUNCE_MS 50      // button debounce delay
-#define AUTO_LOCK_TIMEOUT_MS 5000  // auto-lock after 5 seconds
+#define AUTO_LOCK_TIMEOUT_MS 30000  // auto-lock after 30 seconds
 #define SERVO_MOVE_TIME_MS 500     // time for servo to complete movement
-
-// ==================== STATE DEFINITIONS ====================
 
 typedef enum
 {
@@ -49,8 +46,6 @@ typedef enum
     EVENT_BUTTON_PRESS,
     EVENT_REMOTE_UNLOCK
 } event_type_t;
-
-// ==================== NETWORK CONFIGURATION ====================
 
 // UPDATE BEFORE WIFI DEPLOYMENT
 #define WIFI_SSID "YOUR_WIFI_SSID"

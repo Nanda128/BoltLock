@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "nvs_flash.h"
 
 #include "config.h"
 #include "lock_control.h"
@@ -14,6 +15,7 @@
 #include "state_machine.h"
 #include "event_logger.h"
 #include "network_handler.h"
+#include "buzzer.h"
 
 static const char* TAG = "MAIN";
 
@@ -24,12 +26,14 @@ static void button_monitor_task(void* arg) {
     
     while (1) {
         if (xQueueReceive(button_queue, &button_data, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI(TAG, "Button event received: %d", button_data.event);
+            ESP_LOGI(TAG, "Button event received: %d from button %d", 
+                    button_data.event, button_data.button_id);
             
             if (button_data.event == BUTTON_EVENT_PRESS) {
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             } else if (button_data.event == BUTTON_EVENT_LONG_PRESS) {
-                ESP_LOGI(TAG, "Long press detected: %" PRIu32 " ms", button_data.press_duration_ms);
+                ESP_LOGI(TAG, "Long press detected: %" PRIu32 " ms from button %d", 
+                        button_data.press_duration_ms, button_data.button_id);
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             }
         }
@@ -44,6 +48,15 @@ void app_main(void) {
     ESP_LOGI(TAG, "    DFRobot Firebeetle ESP32");
     ESP_LOGI(TAG, "=======================================");
     
+    ESP_LOGI(TAG, "Initializing NVS flash...");
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS partition was truncated, erasing...");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    
     ESP_LOGI(TAG, "Initializing event logger and NVS...");
     ret = event_logger_init();
     if (ret != ESP_OK) {
@@ -57,6 +70,18 @@ void app_main(void) {
         ESP_LOGE(TAG, "Failed to initialize lock control!");
         return;
     }
+    
+    ESP_LOGI(TAG, "Initializing buzzer...");
+    ret = buzzer_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize buzzer!");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Testing speaker...");
+    buzzer_beep(200);
+    vTaskDelay(pdMS_TO_TICKS(300));
+    buzzer_beep(200);
     
     log_event(EVENT_LOCK, "System startup - door locked");
     
@@ -107,7 +132,6 @@ void app_main(void) {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
         
-        // check every 30 seconds
         static int counter = 0;
         if (++counter >= 30) {
             ESP_LOGI(TAG, "Status: Lock=%s, Network=%s",

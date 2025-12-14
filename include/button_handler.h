@@ -12,9 +12,16 @@ typedef enum
     BUTTON_EVENT_LONG_PRESS
 } button_event_t;
 
+typedef enum
+{
+    BUTTON_ID_UNLOCK,
+    BUTTON_ID_LOCK
+} button_id_t;
+
 typedef struct
 {
     button_event_t event;
+    button_id_t button_id;
     uint32_t press_duration_ms;
 } button_data_t;
 

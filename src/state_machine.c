@@ -1,6 +1,7 @@
 #include "state_machine.h"
 #include "lock_control.h"
 #include "event_logger.h"
+#include "buzzer.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -24,8 +25,9 @@ static void auto_lock_timer_callback(TimerHandle_t xTimer) {
 static void handle_locked_state(sm_event_data_t* event) {
     switch (event->event) {
         case SM_EVENT_BUTTON_PRESS:
-            ESP_LOGI(TAG, "Button pressed in LOCKED state - unlocking");
+            ESP_LOGI(TAG, "Button pressed in LOCKED state");
             unlock_door();
+            buzzer_play_unlock();
             log_event(EVENT_BUTTON_PRESS, "Physical button unlock");
             
             if (auto_lock_timer != NULL) {
@@ -36,6 +38,7 @@ static void handle_locked_state(sm_event_data_t* event) {
         case SM_EVENT_REMOTE_UNLOCK:
             ESP_LOGI(TAG, "Remote unlock command received");
             unlock_door();
+            buzzer_play_unlock();
             log_event(EVENT_REMOTE_UNLOCK, "Remote unlock via network");
             
             if (auto_lock_timer != NULL) {
@@ -51,14 +54,16 @@ static void handle_locked_state(sm_event_data_t* event) {
 static void handle_unlocked_state(sm_event_data_t* event) {
     switch (event->event) {
         case SM_EVENT_TIMEOUT:
-            ESP_LOGI(TAG, "Auto-lock timeout - locking door");
+            ESP_LOGI(TAG, "Auto-lock timeout");
             lock_door();
+            buzzer_play_lock();
             log_event(EVENT_LOCK, "Auto-lock after timeout");
             break;
             
         case SM_EVENT_BUTTON_PRESS:
-            ESP_LOGI(TAG, "Button pressed in UNLOCKED state - manually locking");
+            ESP_LOGI(TAG, "Button pressed in UNLOCKED state");
             lock_door();
+            buzzer_play_lock();
             log_event(EVENT_LOCK, "Manual lock via button");
             
             if (auto_lock_timer != NULL) {
@@ -69,6 +74,7 @@ static void handle_unlocked_state(sm_event_data_t* event) {
         case SM_EVENT_REMOTE_LOCK:
             ESP_LOGI(TAG, "Remote lock command received");
             lock_door();
+            buzzer_play_lock();
             log_event(EVENT_LOCK, "Remote lock via network");
             
             if (auto_lock_timer != NULL) {
