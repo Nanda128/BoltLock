@@ -14,4 +14,6 @@ esp_err_t mqtt_publish(const char *topic, const char *message);
 
 bool is_network_connected(void);
 
+bool is_mqtt_connected(void);
+
 #endif // NETWORK_HANDLER_H

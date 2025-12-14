@@ -53,11 +53,12 @@ typedef enum
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
-#define MQTT_BROKER_URI "mqtt://broker.hivemq.com"
+#define MQTT_BROKER_URI "mqtt://alderaan.software-engineering.ie"
 #define MQTT_PORT 1883
-#define MQTT_TOPIC_STATUS "boltlock/status"
-#define MQTT_TOPIC_COMMAND "boltlock/command"
-#define MQTT_TOPIC_EVENTS "boltlock/events"
+#define MQTT_TOPIC_BASE "BoltLock"
+#define MQTT_TOPIC_STATUS "BoltLock/status"
+#define MQTT_TOPIC_COMMAND "BoltLock/command"
+#define MQTT_TOPIC_EVENTS "BoltLock/events"
 
 #define TELEGRAM_BOT_TOKEN "8211750808:AAHjzySteM0FmwT3G3QCZfk2xbQWTI0TLuQ"
 #define TELEGRAM_CHAT_ID "7286752705"

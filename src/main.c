@@ -115,13 +115,26 @@ void app_main(void) {
 
     // Uncomment below ONLY if WiFi credentials are configured:
 
-    /*
-    ESP_LOGI(TAG, "Initializing WiFi...");
-    ret = network_init();
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "WiFi initialization failed - continuing without network");
-    }
-    */
+    // ESP_LOGI(TAG, "Initializing WiFi...");
+    // ret = network_init();
+    // if (ret != ESP_OK) {
+    //     ESP_LOGW(TAG, "WiFi initialization failed - continuing without network");
+    // } else {
+    //     ESP_LOGI(TAG, "Waiting for WiFi connection...");
+    //     for (int i = 0; i < 20 && !is_network_connected(); i++) {
+    //         vTaskDelay(pdMS_TO_TICKS(500));
+    //     }
+        
+    //     if (is_network_connected()) {
+    //         ESP_LOGI(TAG, "Initializing MQTT...");
+    //         ret = mqtt_init();
+    //         if (ret != ESP_OK) {
+    //             ESP_LOGW(TAG, "MQTT initialization failed - continuing without MQTT");
+    //         }
+    //     } else {
+    //         ESP_LOGW(TAG, "WiFi connection timeout - skipping MQTT initialization");
+    //     }
+    // }
     
     ESP_LOGI(TAG, "=======================================");
     ESP_LOGI(TAG, "System initialization complete!");
@@ -134,9 +147,10 @@ void app_main(void) {
         
         static int counter = 0;
         if (++counter >= 30) {
-            ESP_LOGI(TAG, "Status: Lock=%s, Network=%s",
+            ESP_LOGI(TAG, "Status: Lock=%s, WiFi=%s, MQTT=%s",
                     get_lock_state() == LOCK_STATE_LOCKED ? "LOCKED" : "UNLOCKED",
-                    is_network_connected() ? "CONNECTED" : "DISCONNECTED");
+                    is_network_connected() ? "CONNECTED" : "DISCONNECTED",
+                    is_mqtt_connected() ? "CONNECTED" : "DISCONNECTED");
             counter = 0;
         }
     }

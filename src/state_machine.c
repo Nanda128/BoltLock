@@ -1,6 +1,8 @@
 #include "state_machine.h"
 #include "lock_control.h"
 #include "event_logger.h"
+#include "network_handler.h"
+#include "config.h"
 #include "buzzer.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -10,8 +12,6 @@
 static const char* TAG = "STATE_MACHINE";
 static QueueHandle_t sm_event_queue = NULL;
 static TimerHandle_t auto_lock_timer = NULL;
-
-extern void send_telegram_notification(const char* message);
 
 static void auto_lock_timer_callback(TimerHandle_t xTimer) {
     ESP_LOGI(TAG, "Auto-lock timer expired");
@@ -30,6 +30,11 @@ static void handle_locked_state(sm_event_data_t* event) {
             buzzer_play_unlock();
             log_event(EVENT_BUTTON_PRESS, "Physical button unlock");
             
+            if (is_mqtt_connected()) {
+                mqtt_publish(MQTT_TOPIC_STATUS, "{\"state\":\"unlocked\",\"method\":\"button\"}");
+                mqtt_publish(MQTT_TOPIC_EVENTS, "{\"event\":\"unlock\",\"trigger\":\"button\"}");
+            }
+            
             if (auto_lock_timer != NULL) {
                 xTimerStart(auto_lock_timer, 0);
             }
@@ -40,6 +45,11 @@ static void handle_locked_state(sm_event_data_t* event) {
             unlock_door();
             buzzer_play_unlock();
             log_event(EVENT_REMOTE_UNLOCK, "Remote unlock via network");
+            
+            if (is_mqtt_connected()) {
+                mqtt_publish(MQTT_TOPIC_STATUS, "{\"state\":\"unlocked\",\"method\":\"remote\"}");
+                mqtt_publish(MQTT_TOPIC_EVENTS, "{\"event\":\"unlock\",\"trigger\":\"remote\"}");
+            }
             
             if (auto_lock_timer != NULL) {
                 xTimerStart(auto_lock_timer, 0);
@@ -58,6 +68,11 @@ static void handle_unlocked_state(sm_event_data_t* event) {
             lock_door();
             buzzer_play_lock();
             log_event(EVENT_LOCK, "Auto-lock after timeout");
+            
+            if (is_mqtt_connected()) {
+                mqtt_publish(MQTT_TOPIC_STATUS, "{\"state\":\"locked\",\"method\":\"auto\"}");
+                mqtt_publish(MQTT_TOPIC_EVENTS, "{\"event\":\"lock\",\"trigger\":\"timeout\"}");
+            }
             break;
             
         case SM_EVENT_BUTTON_PRESS:
@@ -65,6 +80,11 @@ static void handle_unlocked_state(sm_event_data_t* event) {
             lock_door();
             buzzer_play_lock();
             log_event(EVENT_LOCK, "Manual lock via button");
+            
+            if (is_mqtt_connected()) {
+                mqtt_publish(MQTT_TOPIC_STATUS, "{\"state\":\"locked\",\"method\":\"button\"}");
+                mqtt_publish(MQTT_TOPIC_EVENTS, "{\"event\":\"lock\",\"trigger\":\"button\"}");
+            }
             
             if (auto_lock_timer != NULL) {
                 xTimerStop(auto_lock_timer, 0);
@@ -76,6 +96,11 @@ static void handle_unlocked_state(sm_event_data_t* event) {
             lock_door();
             buzzer_play_lock();
             log_event(EVENT_LOCK, "Remote lock via network");
+            
+            if (is_mqtt_connected()) {
+                mqtt_publish(MQTT_TOPIC_STATUS, "{\"state\":\"locked\",\"method\":\"remote\"}");
+                mqtt_publish(MQTT_TOPIC_EVENTS, "{\"event\":\"lock\",\"trigger\":\"remote\"}");
+            }
             
             if (auto_lock_timer != NULL) {
                 xTimerStop(auto_lock_timer, 0);
