@@ -26,14 +26,13 @@ static void button_monitor_task(void* arg) {
     
     while (1) {
         if (xQueueReceive(button_queue, &button_data, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI(TAG, "Button event received: %d from button %d", 
-                    button_data.event, button_data.button_id);
+            ESP_LOGI(TAG, "Button event received: %d", button_data.event);
             
             if (button_data.event == BUTTON_EVENT_PRESS) {
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             } else if (button_data.event == BUTTON_EVENT_LONG_PRESS) {
-                ESP_LOGI(TAG, "Long press detected: %" PRIu32 " ms from button %d", 
-                        button_data.press_duration_ms, button_data.button_id);
+                ESP_LOGI(TAG, "Long press detected: %" PRIu32 " ms", 
+                        button_data.press_duration_ms);
                 send_sm_event(SM_EVENT_BUTTON_PRESS, NULL);
             }
         }

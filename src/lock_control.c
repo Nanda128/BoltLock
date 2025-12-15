@@ -115,7 +115,7 @@ esp_err_t lock_control_init(void) {
 #endif
     
     gpio_config_t io_conf_button = {
-        .pin_bit_mask = (1ULL << UNLOCK_BUTTON_PIN) | (1ULL << LOCK_BUTTON_PIN),
+        .pin_bit_mask = (1ULL << TOGGLE_BUTTON_PIN),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -129,8 +129,7 @@ esp_err_t lock_control_init(void) {
     
     gpio_config_t io_conf_leds = {
         .pin_bit_mask = (1ULL << STATUS_LED_BUILTIN) | 
-                        (1ULL << STATUS_LED_RED) | 
-                        (1ULL << STATUS_LED_UNLOCKED),
+                        (1ULL << STATUS_LED_EXTERNAL),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -142,8 +141,8 @@ esp_err_t lock_control_init(void) {
         return ret;
     }
     
-    ESP_LOGI(TAG, "LED GPIO configured: BUILTIN=%d, RED=%d, GREEN=%d", 
-            STATUS_LED_BUILTIN, STATUS_LED_RED, STATUS_LED_UNLOCKED);
+    ESP_LOGI(TAG, "LED GPIO configured: BUILTIN=%d, EXTERNAL=%d", 
+            STATUS_LED_BUILTIN, STATUS_LED_EXTERNAL);
     
     ESP_LOGI(TAG, "Testing LEDs - COMMON CATHODE (HIGH=ON)...");
     gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
@@ -151,15 +150,10 @@ esp_err_t lock_control_init(void) {
     vTaskDelay(pdMS_TO_TICKS(500));
     gpio_set_level(STATUS_LED_BUILTIN, 0);  // OFF
     
-    gpio_set_level(STATUS_LED_RED, 1);      // ON
-    ESP_LOGI(TAG, "  RED=HIGH (should be ON)");
+    gpio_set_level(STATUS_LED_EXTERNAL, 1); // ON
+    ESP_LOGI(TAG, "  EXTERNAL=HIGH (should be ON)");
     vTaskDelay(pdMS_TO_TICKS(500));
-    gpio_set_level(STATUS_LED_RED, 0);      // OFF
-    
-    gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
-    ESP_LOGI(TAG, "  GREEN=HIGH (should be ON)");
-    vTaskDelay(pdMS_TO_TICKS(500));
-    gpio_set_level(STATUS_LED_UNLOCKED, 0); // OFF
+    gpio_set_level(STATUS_LED_EXTERNAL, 0); // OFF
     
     ESP_LOGI(TAG, "Testing LEDs - COMMON ANODE (LOW=ON)...");
     gpio_set_level(STATUS_LED_BUILTIN, 0);  // ON
@@ -167,15 +161,10 @@ esp_err_t lock_control_init(void) {
     vTaskDelay(pdMS_TO_TICKS(500));
     gpio_set_level(STATUS_LED_BUILTIN, 1);  // OFF
     
-    gpio_set_level(STATUS_LED_RED, 0);      // ON
-    ESP_LOGI(TAG, "  RED=LOW (should be ON)");
+    gpio_set_level(STATUS_LED_EXTERNAL, 0); // ON
+    ESP_LOGI(TAG, "  EXTERNAL=LOW (should be ON)");
     vTaskDelay(pdMS_TO_TICKS(500));
-    gpio_set_level(STATUS_LED_RED, 1);      // OFF
-    
-    gpio_set_level(STATUS_LED_UNLOCKED, 0); // ON
-    ESP_LOGI(TAG, "  GREEN=LOW (should be ON)");
-    vTaskDelay(pdMS_TO_TICKS(500));
-    gpio_set_level(STATUS_LED_UNLOCKED, 1); // OFF
+    gpio_set_level(STATUS_LED_EXTERNAL, 1); // OFF
     
     ESP_LOGI(TAG, "LED test complete - which lights worked?");
     
@@ -281,30 +270,26 @@ void update_status_led(void) {
     switch (state) {
         case LOCK_STATE_LOCKED:
             gpio_set_level(STATUS_LED_BUILTIN, 0);  // OFF
-            gpio_set_level(STATUS_LED_RED, 1);      // ON
-            gpio_set_level(STATUS_LED_UNLOCKED, 0); // OFF
-            ESP_LOGI(TAG, "LED: RED=HIGH (locked)");
+            gpio_set_level(STATUS_LED_EXTERNAL, 1); // ON
+            ESP_LOGI(TAG, "LED: EXTERNAL=ON, BUILTIN=OFF (locked)");
             break;
             
         case LOCK_STATE_UNLOCKING:
             gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
-            gpio_set_level(STATUS_LED_RED, 1);      // ON
-            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
-            ESP_LOGI(TAG, "LED: ALL=HIGH (unlocking)");
+            gpio_set_level(STATUS_LED_EXTERNAL, 1); // ON
+            ESP_LOGI(TAG, "LED: BOTH=ON (unlocking)");
             break;
             
         case LOCK_STATE_UNLOCKED:
             gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
-            gpio_set_level(STATUS_LED_RED, 0);      // OFF
-            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
-            ESP_LOGI(TAG, "LED: GREEN=HIGH (unlocked)");
+            gpio_set_level(STATUS_LED_EXTERNAL, 0); // OFF
+            ESP_LOGI(TAG, "LED: BUILTIN=ON, EXTERNAL=OFF (unlocked)");
             break;
             
         case LOCK_STATE_ERROR:
             gpio_set_level(STATUS_LED_BUILTIN, 1);  // ON
-            gpio_set_level(STATUS_LED_RED, 1);      // ON
-            gpio_set_level(STATUS_LED_UNLOCKED, 1); // ON
-            ESP_LOGI(TAG, "LED: ALL=HIGH (error)");
+            gpio_set_level(STATUS_LED_EXTERNAL, 1); // ON
+            ESP_LOGI(TAG, "LED: BOTH=ON (error)");
             break;
     }
 }
