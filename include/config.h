@@ -50,8 +50,8 @@ typedef enum
 } event_type_t;
 
 // UPDATE BEFORE WIFI DEPLOYMENT
-#define WIFI_SSID "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID "Tom's Galaxy S21"
+#define WIFI_PASSWORD "tiernans"
 
 #define MQTT_BROKER_URI "mqtt://alderaan.software-engineering.ie"
 #define MQTT_PORT 1883
