@@ -150,8 +150,29 @@ esp_err_t log_event(event_type_t type, const char* description) {
     char message[256];
     format_event_message(&event, message, sizeof(message));
     
-    // TODO: Send to network queue for transmission via MQTT/Telegram
-    // NETWORK INTEGRATION HERE
+    // Send to network queue for transmission via MQTT/Telegram
+    if (is_network_connected()) {
+        // Try to send via Telegram first
+        esp_err_t ret = send_telegram_notification(message);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to send Telegram notification: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGD(TAG, "Telegram notification sent successfully");
+        }
+        
+        // Also publish to MQTT if connected
+        if (is_mqtt_connected()) {
+            ret = mqtt_publish("boltlock/events", message);
+            if (ret != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to publish to MQTT: %s", esp_err_to_name(ret));
+            } else {
+                ESP_LOGD(TAG, "MQTT event published successfully");
+            }
+        }
+    } else {
+        ESP_LOGD(TAG, "Network not connected, skipping remote event transmission");
+    }
+    
     ESP_LOGI(TAG, "Event logged successfully (count: %" PRIu32 ")", event_count);
     
     return ESP_OK;
