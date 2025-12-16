@@ -20,6 +20,7 @@
 #define BUTTON_DEBOUNCE_MS 50      // button debounce delay
 #define AUTO_LOCK_TIMEOUT_MS 30000  // auto-lock after 30 seconds
 #define SERVO_MOVE_TIME_MS 500     // time for servo to complete movement
+#define WIFI_RECONNECT_DELAY_MS 30000  // delay before WiFi reconnect attempt (30 seconds)
 
 #define USE_EMOJI_FORMAT 1         // use emojis in event messages (1=emoji, 0=text)
 

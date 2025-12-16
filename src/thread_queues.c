@@ -2,6 +2,9 @@
  * Thread Queues - Implementation
  * 
  * "Implements bi-directional queuing between control and agent threads" - Mark Spec
+ * 
+ * Command Queue sends CMD_LOCK, CMD_UNLOCK, CMD_MOVE_TO_POSITION commands from the agent thread to the control thread.
+ * Feedback Queue sends FEEDBACK_COMMAND_COMPLETE, FEEDBACK_ERROR messages from the control thread to the agent thread.
  * ============================================================================ */
 
 #include "thread_queues.h"
@@ -27,7 +30,13 @@ static thread_queues_t queues = {
  * Initialize both command and feedback queues
  * ---------------------------------------------------------------------------- */
 esp_err_t thread_queues_init(void) {
+    // THIS FUNCTION IMPLEMENTS QUEUES BETWEEN THREADS
+    // HENCE, BIDIRECTIONAL QUEUEING MECHANISMS TO ALLOW DATA
+    // TO BE TRANSFERRED BETWEEN THREADS
     ESP_LOGI(TAG, "Initializing bi-directional thread queues...");
+    
+    // SYSTEM BUFFERS COMMANDS AND FEEDBACK THROUGH FREERTOS QUEUES
+    // THIS WAY, THEY CAN ACCUMULATE EVEN IF NETWORK IS DOWN
     
     // Create command queue (Agent thread -> Control thread)
     queues.command_queue = xQueueCreate(COMMAND_QUEUE_SIZE, sizeof(control_command_t));

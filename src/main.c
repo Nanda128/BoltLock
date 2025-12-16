@@ -47,6 +47,8 @@ static QueueHandle_t button_queue = NULL;
  * 4. Monitor feedback from the control thread (bi-directional communication)
  * ---------------------------------------------------------------------------- */
 static void button_monitor_task(void* arg) {
+    // Control / data acquisition functionality and the agent functionality must run in different threads running at different priorities.
+    // THIS FUNCTION DEMONSTRATES SEPARATE AGENT THREAD DEALING WIHT BUTTONS AND STATE MACHINE
     button_data_t button_data;  // Variable to hold button event info
     control_feedback_t feedback;  // Variable to hold feedback from control thread
     
@@ -65,36 +67,18 @@ static void button_monitor_task(void* arg) {
         }
         
         // Check for feedback from control thread (non-blocking)
-        // This demonstrates bi-directional communication:
         // - Agent sends commands via send_control_command()
         // - Control thread sends feedback via post_control_feedback()
         while (receive_control_feedback(&feedback, 0) == ESP_OK) {
             switch (feedback.type) {
-                case FEEDBACK_POSITION_UPDATE:
-                    ESP_LOGD(TAG, "Position update: %.1f° (target: %.1f°, error: %.2f°)",
-                            feedback.current_position, feedback.target_position, feedback.error);
-                    break;
-                    
                 case FEEDBACK_COMMAND_COMPLETE:
-                    ESP_LOGI(TAG, "Command completed: position=%.1f°", feedback.current_position);
-                    break;
-                    
-                case FEEDBACK_COMMAND_FAILED:
-                    ESP_LOGW(TAG, "Command failed: %s", feedback.message);
+                    ESP_LOGI(TAG, "Command completed: position=%.1f° (target: %.1f°, error: %.2f°)",
+                            feedback.current_position, feedback.target_position, feedback.error);
                     break;
                     
                 case FEEDBACK_ERROR:
                     ESP_LOGE(TAG, "Control error: %s (code: %d)", 
                             feedback.message, feedback.error_code);
-                    break;
-                    
-                case FEEDBACK_STALL_DETECTED:
-                    ESP_LOGW(TAG, "Motor stall detected at %.1f°", feedback.current_position);
-                    // Could trigger error handling or retry logic here
-                    break;
-                    
-                case FEEDBACK_CALIBRATION_DONE:
-                    ESP_LOGI(TAG, "Calibration completed");
                     break;
                     
                 default:
@@ -210,23 +194,6 @@ void app_main(void) {
     }
     ESP_LOGI(TAG, "Agent thread started at priority 5");
 
-    // ========================================================================
-    // NETWORK SETUP INSTRUCTIONS:
-    // ========================================================================
-    // This system is configured to work with a LAPTOP INTERMEDIARY setup.
-    // 
-    // BEFORE enabling network, complete these steps:
-    // 1. Set up WiFi hotspot on your laptop (see LAPTOP_SETUP_GUIDE.md)
-    // 2. Install and start Mosquitto MQTT broker on laptop
-    // 3. Update WiFi credentials in include/config.h:
-    //    - WIFI_SSID: Your laptop hotspot name
-    //    - WIFI_PASSWORD: Your laptop hotspot password
-    //    - MQTT_BROKER_URI: Your laptop's IP (e.g., mqtt://192.168.137.1)
-    //
-    // Quick reference: See QUICK_SETUP.md
-    // Full guide: See LAPTOP_SETUP_GUIDE.md
-    // ========================================================================
-
     ESP_LOGI(TAG, "Initializing WiFi...");
     ret = network_init();
     if (ret != ESP_OK) {
@@ -277,10 +244,10 @@ void app_main(void) {
                     get_lock_state() == LOCK_STATE_LOCKED ? "LOCKED" : "UNLOCKED",
                     is_network_connected() ? "CONNECTED" : "DISCONNECTED",
                     is_mqtt_connected() ? "CONNECTED" : "DISCONNECTED");
-            ESP_LOGI(TAG, "RT Control: %.1f° | Loops: %u | Avg: %.1fus",
+            ESP_LOGI(TAG, "RT Control: %.1f° | Cmds: %u | Moves: %u",
                     rt_control_get_position(),
-                    (unsigned int)stats.loop_count,
-                    stats.avg_loop_time_us);
+                    (unsigned int)stats.commands_processed,
+                    (unsigned int)stats.moves_completed);
             counter = 0;  // Reset counter
         }
     }

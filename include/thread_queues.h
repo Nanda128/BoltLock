@@ -50,12 +50,8 @@ typedef struct
 /* Feedback Queue: Control Thread -> Agent */
 typedef enum
 {
-    FEEDBACK_POSITION_UPDATE,  // Current position update
     FEEDBACK_COMMAND_COMPLETE, // Command completed successfully
-    FEEDBACK_COMMAND_FAILED,   // Command failed
-    FEEDBACK_ERROR,            // Error occurred
-    FEEDBACK_STALL_DETECTED,   // Motor stall detected
-    FEEDBACK_CALIBRATION_DONE  // Calibration completed
+    FEEDBACK_ERROR             // Error occurred
 } feedback_type_t;
 
 typedef struct
