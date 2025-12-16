@@ -14,4 +14,6 @@ lock_state_t get_lock_state(void);
 
 void update_status_led(void);
 
+esp_err_t set_lock_position(float angle);
+
 #endif // LOCK_CONTROL_H
