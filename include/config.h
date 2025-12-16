@@ -11,17 +11,11 @@
 #define STATUS_LED_BUILTIN GPIO_NUM_2
 #define STATUS_LED_EXTERNAL GPIO_NUM_13 
 
-#define USE_SERVO_MOTOR 1
-
-#if USE_SERVO_MOTOR
 #define SERVO_LOCKED_ANGLE 0
 #define SERVO_UNLOCKED_ANGLE 90
 #define SERVO_PWM_FREQ 50
 #define SERVO_MIN_PULSE_US 500
 #define SERVO_MAX_PULSE_US 2500
-#else
-#define RELAY_ACTIVE_LOW 0
-#endif
 
 #define BUTTON_DEBOUNCE_MS 50      // button debounce delay
 #define AUTO_LOCK_TIMEOUT_MS 30000  // auto-lock after 30 seconds
@@ -46,7 +40,7 @@ typedef enum
 } event_type_t;
 
 #define WIFI_SSID "Tom's Galaxy S21"
-#define WIFI_PASSWORD "tiernans"
+#define WIFI_PASSWORD "12345678"
 
 #define MQTT_BROKER_URI "mqtt://alderaan.software-engineering.ie"
 #define MQTT_PORT 1883

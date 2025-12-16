@@ -69,6 +69,11 @@ esp_err_t network_init(void) {
         .sta = {
             .ssid = WIFI_SSID,
             .password = WIFI_PASSWORD,
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK, 
+            .pmf_cfg = {
+                .capable = true,
+                .required = false
+            },
         },
     };
     
@@ -76,6 +81,20 @@ esp_err_t network_init(void) {
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set WiFi mode: %s", esp_err_to_name(ret));
         return ret;
+    }
+    
+    // Set WiFi protocol to support 802.11b/g/n for better iPhone compatibility
+    ret = esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set WiFi protocol: %s", esp_err_to_name(ret));
+        // Continue anyway - not critical
+    }
+    
+    // Set WiFi bandwidth to 20MHz for better compatibility with iPhone hotspots
+    ret = esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set WiFi bandwidth: %s", esp_err_to_name(ret));
+        // Continue anyway - not critical
     }
     
     ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
@@ -92,64 +111,6 @@ esp_err_t network_init(void) {
     
     ESP_LOGI(TAG, "WiFi initialization completed");
     return ESP_OK;
-}
-
-esp_err_t send_telegram_notification(const char* message) {
-    if (message == NULL) {
-        ESP_LOGE(TAG, "Invalid message: null pointer");
-        return ESP_ERR_INVALID_ARG;
-    }
-    
-    if (!wifi_connected) {
-        ESP_LOGW(TAG, "WiFi not connected. Cannot send Telegram notification.");
-        return ESP_ERR_INVALID_STATE;
-    }
-    
-    if (strcmp(TELEGRAM_BOT_TOKEN, "YOUR_TELEGRAM_BOT_TOKEN_HERE") == 0 ||
-        strcmp(TELEGRAM_CHAT_ID, "YOUR_TELEGRAM_CHAT_ID_HERE") == 0) {
-        ESP_LOGE(TAG, "Telegram credentials not configured in config.h");
-        return ESP_ERR_INVALID_STATE;
-    }
-    
-    char url[256];
-    snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/sendMessage", TELEGRAM_BOT_TOKEN);
-    
-    esp_http_client_config_t http_config = {
-        .url = url,
-        .method = HTTP_METHOD_POST,
-    };
-    
-    esp_http_client_handle_t client = esp_http_client_init(&http_config);
-    if (client == NULL) {
-        ESP_LOGE(TAG, "Failed to initialize HTTP client");
-        return ESP_FAIL;
-    }
-    
-    char post_data[512];
-    snprintf(post_data, sizeof(post_data),
-            "{\"chat_id\":\"%s\",\"text\":\"%s\",\"parse_mode\":\"HTML\"}",
-            TELEGRAM_CHAT_ID, message);
-    
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_post_field(client, post_data, strlen(post_data));
-    
-    esp_err_t err = esp_http_client_perform(client);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        return err;
-    }
-    
-    int status_code = esp_http_client_get_status_code(client);
-    if (status_code == 200) {
-        ESP_LOGI(TAG, "Telegram notification sent successfully (HTTP %d)", status_code);
-    } else {
-        ESP_LOGW(TAG, "Telegram notification failed with HTTP status %d", status_code);
-    }
-    
-    esp_http_client_cleanup(client);
-    
-    return (status_code == 200) ? ESP_OK : ESP_FAIL;
 }
 
 static void mqtt_event_handler(void* handler_args, esp_event_base_t base, 
@@ -272,7 +233,7 @@ esp_err_t mqtt_init(void) {
     
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = MQTT_BROKER_URI,
-        .broker.address.port = MQTT_PORT,
+        // Don't set port separately when using URI - it's already in the URI or uses default
     };
     
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);

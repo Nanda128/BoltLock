@@ -6,8 +6,6 @@
 
 esp_err_t network_init(void);
 
-esp_err_t send_telegram_notification(const char *message);
-
 esp_err_t mqtt_init(void);
 
 esp_err_t mqtt_publish(const char *topic, const char *message);

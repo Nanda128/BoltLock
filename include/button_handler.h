@@ -8,8 +8,7 @@
 typedef enum
 {
     BUTTON_EVENT_PRESS,
-    BUTTON_EVENT_RELEASE,
-    BUTTON_EVENT_LONG_PRESS
+    BUTTON_EVENT_RELEASE
 } button_event_t;
 
 typedef struct
