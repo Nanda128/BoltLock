@@ -14,4 +14,14 @@ It's built using DFRobot FireBeetle ESP32 using the ESP-IDF framework to support
 - **Network Ready**: WiFi and MQTT support with auto-reconnect
 - **Easy Control**: Python script and command-line tools included
 
+Run the test script to test MQTT implementation using the following:
+
+```bash
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+python.exe .\test_mqtt.py
+```
+
+
 ## By: Nanda Vinay (SID 23070854) & Tiernan Scully (SID 23365528)

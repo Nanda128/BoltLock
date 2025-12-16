@@ -40,8 +40,8 @@ typedef enum
     EVENT_REMOTE_UNLOCK
 } event_type_t;
 
-#define WIFI_SSID "Tom's Galaxy S21"
-#define WIFI_PASSWORD "12345678"
+#define WIFI_SSID "MoodysMobile"
+#define WIFI_PASSWORD "10564738"
 
 #define MQTT_BROKER_URI "mqtt://alderaan.software-engineering.ie"
 #define MQTT_PORT 1883
