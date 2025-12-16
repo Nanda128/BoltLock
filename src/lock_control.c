@@ -1,5 +1,14 @@
 /* ============================================================================
  * Lock Control - Controls the Physical Lock Mechanism
+ *
+ * PWM-based servo control using ESP32 LEDC
+ * - Converts angles to PWM duty cycles using 50Hz frequency
+ * - Controls status LEDs to indicate lock state
+ * - Manages lock state with mutex protection
+ * 
+ * Also an example of separate threads at diff priorities
+ * Control Thread has a priority of 10 since it has real-time servo control with timing constraints
+ * Agent Thread has priority 5 since it just does button monitoring, state achine, network etc
  *  
  * Controls:
  * - Status LEDs (show if door is locked or unlocked)
@@ -325,7 +334,7 @@ lock_state_t get_lock_state(void) {
 /* ----------------------------------------------------------------------------
  * update_status_led
  * 
- * Updates LED状态LEDs based on current lock state
+ * Updates LEDs based on current lock state
  * 
  * LED patterns:
  * - LOCKED:     External LED ON,  Built-in LED OFF
@@ -378,8 +387,9 @@ void update_status_led(void) {
  * Directly set 9g servo position (used by real-time control thread)
  * 
  * This function provides low-level position control without changing
- * the lock state. Used by the RT control thread for smooth PID control.
+ * the lock state. Used by the RT control thread for smooth control.
  * ---------------------------------------------------------------------------- */
 esp_err_t set_lock_position(float angle) {
+    // Executes servo movements
     return servo_write_angle((uint8_t)angle);
 }
