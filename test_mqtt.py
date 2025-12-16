@@ -80,18 +80,23 @@ def main():
         print("\n--- Starting Test Sequence ---")
 
         # Test 1: Unlock command
-        print("\n[Test 1/3] Sending UNLOCK command...")
+        print("\n[Test 1/4] Sending UNLOCK command...")
         publish_command(client, "unlock")
         time.sleep(3)
 
         # Test 2: Lock command
-        print("\n[Test 2/3] Sending LOCK command...")
+        print("\n[Test 2/4] Sending LOCK command...")
         publish_command(client, "lock")
         time.sleep(3)
 
         # Test 3: Unlock again
-        print("\n[Test 3/3] Sending UNLOCK command again...")
+        print("\n[Test 3/4] Sending UNLOCK command again...")
         publish_command(client, "unlock")
+        time.sleep(3)
+
+        # Test 4: Lock again
+        print("\n[Test 4/4] Sending LOCK command again...")
+        publish_command(client, "lock")
         time.sleep(3)
 
         print("\n--- Test Sequence Complete ---")
